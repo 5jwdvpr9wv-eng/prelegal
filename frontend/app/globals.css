@@ -4,20 +4,53 @@
 
 @layer base {
   body {
-    @apply bg-gray-50 text-gray-900;
+    @apply text-ink bg-white;
   }
 }
 
 @layer components {
+  /* ── Form inputs ─────────────────────────────────────── */
+
+  .form-input {
+    @apply w-full rounded-md border border-rule bg-white px-3 py-2 text-sm text-ink
+           placeholder:text-slate-300
+           transition-colors duration-150
+           focus:outline-none;
+    /* Gold focus: left accent + warm ring — the signature element */
+    box-shadow: inset 3px 0 0 transparent;
+  }
+
+  .form-input:focus {
+    border-color: #b8963e;
+    background-color: #fdf8f0;
+    box-shadow: inset 3px 0 0 #b8963e, 0 0 0 3px rgba(184,150,62,0.10);
+  }
+
+  .form-label {
+    @apply block text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-1.5;
+  }
+
+  /* ── NDA document body ───────────────────────────────── */
+
   .nda-body {
-    @apply text-sm leading-relaxed text-gray-800;
+    @apply text-[12.5px] leading-[1.7] text-slate-700;
   }
 
   .nda-body p {
     @apply mb-4;
   }
 
+  /* Filled field in document */
   .field-value {
-    @apply font-semibold text-blue-700 underline decoration-dotted underline-offset-2;
+    @apply font-semibold text-ink;
+    text-decoration: underline;
+    text-decoration-color: #b8963e;
+    text-decoration-style: dotted;
+    text-underline-offset: 3px;
+  }
+
+  /* Unfilled placeholder in document */
+  .field-empty {
+    @apply text-slate-300 tracking-wide;
   }
 }
