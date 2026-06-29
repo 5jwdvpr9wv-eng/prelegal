@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900;
+  }
+}
+
+@layer components {
+  .nda-body {
+    @apply text-sm leading-relaxed text-gray-800;
+  }
+
+  .nda-body p {
+    @apply mb-4;
+  }
+
+  .field-value {
+    @apply font-semibold text-blue-700 underline decoration-dotted underline-offset-2;
+  }
+}
