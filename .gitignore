@@ -1,11 +1,15 @@
+# ============================================================
 # Python
+# ============================================================
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
+*.so
 .Python
 *.egg
 *.egg-info/
+*.egg-link
 dist/
 build/
 eggs/
@@ -16,77 +20,183 @@ develop-eggs/
 .installed.cfg
 lib/
 lib64/
-*.so
+wheels/
+share/python-wheels/
 .eggs/
+pip-wheel-metadata/
+__pypackages__/
 
 # Virtual environments
-.env
-.venv
-env/
+.venv/
 venv/
+env/
 ENV/
+.env.bak
+.python-version
 
-# Environment variables
-.env.local
-.env.*.local
-*.env
-
-# FastAPI / Uvicorn
-*.log
-
-# pytest
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-
-# mypy
+# Type checking
 .mypy_cache/
 .dmypy.json
 dmypy.json
+.pytype/
+.pyre/
+pyrightconfig.json
 
+# Linting / formatting
+.ruff_cache/
+.bandit
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.tox/
+nosetests.xml
+test-results/
+junit.xml
+reports/
+
+# Docs
+docs/_build/
+site/
+
+# ============================================================
+# FastAPI / backend
+# ============================================================
+*.log
+*.pid
+celerybeat-schedule
+celerybeat.pid
+dump.rdb
+
+# Alembic compiled migrations
+alembic/versions/*.pyc
+
+# ============================================================
+# Environment / secrets — NEVER commit these
+# .env.example or .env.template SHOULD be committed
+# ============================================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.staging
+.env.production
+*.env.local
+secrets/
+*.pem
+*.key
+*.p12
+
+# ============================================================
 # Node.js
+# ============================================================
 node_modules/
+.npm
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+lerna-debug.log*
+.node_repl_history
+*.tgz
 
+# ============================================================
 # Next.js
+# ============================================================
 .next/
 out/
 .turbo/
-
-# Vercel
-.vercel
-
-# Build output
-dist/
-build/
+next-env.d.ts
 
 # TypeScript
 *.tsbuildinfo
-next-env.d.ts
 
-# Testing
+# Bundle analysis
+.bundle-analyzer/
+
+# ============================================================
+# Build output
+# ============================================================
+dist/
+build/
+storybook-static/
+
+# ============================================================
+# Testing (JS/TS)
+# ============================================================
 coverage/
 .nyc_output/
+playwright-report/
+test-results/
+e2e/screenshots/
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-.DS_Store
-Thumbs.db
+# Linting cache
+.eslintcache
+.stylelintcache
+
+# ============================================================
+# Deployment
+# ============================================================
+.vercel
+.netlify
+.serverless/
 
 # Docker
-*.env.docker
+.env.docker
+docker-compose.override.yml
 
+# ============================================================
+# Cloud / infra
+# ============================================================
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+
+# ============================================================
 # Databases
+# ============================================================
 *.db
 *.sqlite
 *.sqlite3
+*.sql.bak
 
-# Alembic
-alembic/versions/*.pyc
+# ============================================================
+# IDE / editors
+# ============================================================
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-workspace
+
+# ============================================================
+# OS
+# ============================================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ============================================================
+# Misc
+# ============================================================
+*.bak
+*.tmp
+*.temp
+.cache/
