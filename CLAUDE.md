@@ -8,7 +8,7 @@ The available documents are covered in the catalog.json file in the project root
 
 @catalog.json
 
-The current implementation supports all 11 document types via AI chat with full user authentication and document persistence.
+The current implementation (PL-4) provides the technical foundation: Docker container, FastAPI backend, SQLite auth, and a Mutual NDA form with live preview and PDF download. AI chat, additional document types, and document persistence are planned for future tickets.
 
 ## Development process
 
@@ -30,7 +30,7 @@ The entire project should be packaged into a Docker container.
 The backend should be in backend/ and be a uv project, using FastAPI.  
 The frontend should be in frontend/  
 The database should use SQLLite and be created from scratch each time the Docker container is brought up, allowing for a users table with sign up and sign in.  
-Consider statically building the frontend and serving it via FastAPI, if that will work.  
+The frontend is statically built (`next build` with `output: "export"`) and served by FastAPI from `frontend/out/`.  
 There should be scripts in scripts/ for:  
 ```bash
 # Mac
@@ -48,58 +48,36 @@ scripts/stop-windows.ps1
 Backend available at http://localhost:8000
 
 ## Color Scheme
-- Accent Yellow: `#ecad0a`
-- Blue Primary: `#209dd7`
-- Purple Secondary: `#753991` (submit buttons)
-- Dark Navy: `#032147` (headings)
-- Gray Text: `#888888`
+
+These are the actual Tailwind tokens in `frontend/tailwind.config.ts`:
+- `navy`: `#0f1f38` (header background)
+- `gold`: `#b8963e` (accents, focus states, download button)
+- `gold-hover`: `#a07d2e`
+- `gold-light`: `#fdf8f0` (focused input background)
+- `surface`: `#f2f1ee` (form panel background)
+- `desk`: `#c8c4bc` (document preview background)
+- `rule`: `#e5e2dd` (borders)
+- `ink`: `#1a2333` (body text)
 
 ## Implementation Status
 
-### Completed (PL-4)
-- Docker multi-stage build (Node frontend + Python backend)
-- FastAPI backend with SQLite (fresh DB each container start)
-- Next.js static export served by FastAPI at localhost:8000
-- Auth routes: POST /api/auth/signup, POST /api/auth/signin, POST /api/auth/signout, GET /api/auth/me
-- Start/stop scripts for Mac, Linux, Windows
-- Mutual NDA form with live preview and PDF download
+### Completed (PL-4) — Technical Foundation
+- Docker multi-stage build: Node 20 builds frontend, Python 3.12-slim runs backend
+- FastAPI backend (`backend/`, uv project) with SQLite — fresh DB each container start
+- Next.js static export (`output: "export"`) served by FastAPI at `http://localhost:8000`
+- Auth endpoints with JWT (HttpOnly cookies) and bcrypt password hashing
+- Start/stop scripts for Mac, Linux, Windows (`scripts/`)
+- Mutual NDA form with live preview and client-side PDF download (`frontend/app/page.tsx`)
+- `.env.example` documents required environment variables
 
-### Completed (PL-5)
-- AI chat interface replaces manual form for NDA creation
-- Uses LiteLLM via OpenRouter with Cerebras inference (gpt-oss-120b model)
-- Structured outputs for reliable field extraction from conversation
-- Live preview updates as AI extracts fields from chat
-- AI greets user, asks questions conversationally, and confirms when complete
-- Download button appears when all required fields are gathered
-
-### Completed (PL-6)
-- Support for all 11 document types from catalog.json
-- AI detects document type from user requests and routes accordingly
-- Dedicated preview/PDF components for Mutual NDA, Cloud Service Agreement, Pilot Agreement
-- Generic preview/PDF components for remaining document types (Design Partner, SLA, Professional Services, Partnership, Software License, DPA, BAA, AI Addendum)
-- Auto-focus chat input after sending messages
-- AI always asks follow-on questions when more information is needed
-
-### Completed (PL-7)
-- Functional user authentication with JWT tokens in HttpOnly cookies
-- User signup and signin with email/password (bcrypt password hashing)
-- Document persistence - users can save documents to their account
-- My Documents modal to view, load, and delete saved documents
-- User menu with sign out functionality
-- New Document button to start fresh
-- Auth context for managing user state across the app
-- Protected document save/load endpoints
+### Not yet built (upcoming tickets)
+- **PL-5**: AI chat interface for NDA creation (LiteLLM / OpenRouter / Cerebras)
+- **PL-6**: Support for all 11 document types from catalog.json
+- **PL-7**: Frontend auth UI, document persistence, My Documents, user menu
 
 ### Current API Endpoints
-- `POST /api/auth/signup` - Create new user account
-- `POST /api/auth/signin` - Sign in and receive JWT cookie
-- `POST /api/auth/signout` - Clear auth cookie
-- `GET /api/auth/me` - Get current user info
-- `GET /api/documents` - List user's saved documents (auth required)
-- `POST /api/documents` - Save new document (auth required)
-- `GET /api/documents/{id}` - Get specific document (auth required)
-- `PUT /api/documents/{id}` - Update document (auth required)
-- `DELETE /api/documents/{id}` - Delete document (auth required)
-- `GET /api/chat/greeting` - Get AI greeting
-- `POST /api/chat/message` - Send chat message and get AI response
-- `GET /api/health` - Health check
+- `GET  /api/health` — Health check
+- `POST /api/auth/signup` — Create account (sets JWT cookie)
+- `POST /api/auth/signin` — Sign in (sets JWT cookie)
+- `POST /api/auth/signout` — Clear JWT cookie
+- `GET  /api/auth/me` — Return current user (requires cookie)
