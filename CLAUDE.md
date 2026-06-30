@@ -8,7 +8,7 @@ The available documents are covered in the catalog.json file in the project root
 
 @catalog.json
 
-The current implementation (PL-5) adds an AI chat interface for Mutual NDA creation on top of the PL-4 technical foundation. Additional document types and document persistence are planned for future tickets.
+The current implementation supports all 11 document types via AI chat. PL-4 built the technical foundation, PL-5 added AI chat for NDA creation, PL-6 expanded to all document types. Document persistence is planned for future tickets.
 
 ## Development process
 
@@ -71,23 +71,32 @@ These are the actual Tailwind tokens in `frontend/tailwind.config.ts`:
 - `.env.example` documents required environment variables
 
 ### Completed (PL-5) — AI Chat Interface
-- Left panel has a **Chat / Form** tab toggle — both modes share `formData` so the NDA preview stays in sync
+- Left panel has a **Chat / Form** tab toggle — both modes share `formData` so the preview stays in sync
 - **AI Chat tab**: freeform conversation; AI asks questions and extracts field values via structured output
-- **Manual Form tab**: original field-by-field form preserved for users who prefer direct input
+- **Manual Form tab**: field-by-field form for users who prefer direct input
 - LiteLLM via OpenRouter with Cerebras inference (`gpt-oss-120b`); streaming SSE response + structured-output field extraction after each reply
-- Live NDA preview (right panel) and PDF generation unchanged from PL-4
-- Download PDF button: always visible in Form mode; appears in Chat mode once all 8 required fields are populated
-- Backend: `backend/app/chat.py` (chat logic), 8 integration tests in `backend/tests/`
-- Resilience: extraction wrapped in `try/finally` (backend) and `sendMessage` uses `try/catch/finally` (frontend) so the UI never gets permanently locked on API failures
+- Resilience: extraction wrapped in `try/finally` (backend) and `sendMessage` uses `try/catch/finally` (frontend)
+
+### Completed (PL-6) — All Document Types
+- AI detects document type from conversation (two-phase: detecting → drafting)
+- Document Registry in `backend/app/documents.py`: `DocumentConfig` dataclass, `REGISTRY` dict with 12 entries, `make_fields_model()` builds Pydantic models dynamically via `create_model`
+- SSE events: `text`, `detection`, `fields`, `done`, `error`
+- `detection` event carries `document_type` and `name`; frontend transitions from detecting → drafting phase
+- `FormData = Record<string, string>` replaces `NDAFormData`; `DOCUMENT_CONFIGS` mirrors backend registry
+- NDA: structured preview + PDF; other types: `GenericPreview` + `generateGenericPDF`
+- `DynamicFormPanel` renders any document's fields from config
+- Download button appears when all required fields are populated and doc type is known
+- `GET /api/catalog` endpoint returns all registered doc types
+- 19 backend tests passing; backward-compat aliases: `GREETING`, `NDAFields`
 
 ### Not yet built (upcoming tickets)
-- **PL-6**: Support for all 11 document types from catalog.json
 - **PL-7**: Frontend auth UI, document persistence, My Documents, user menu
 
 ### Current API Endpoints
 - `GET  /api/health` — Health check
-- `GET  /api/chat/greeting` — Returns AI greeting message
-- `POST /api/chat/message` — Streaming SSE chat: `{message, history}` → text chunks + fields + done
+- `GET  /api/catalog` — List all supported document types
+- `GET  /api/chat/greeting` — Returns AI greeting (`?document_type=<key>` for doc-specific)
+- `POST /api/chat/message` — Streaming SSE chat: `{message, history, document_type?}` → text/detection/fields/done events
 - `POST /api/auth/signup` — Create account (sets JWT cookie)
 - `POST /api/auth/signin` — Sign in (sets JWT cookie)
 - `POST /api/auth/signout` — Clear JWT cookie
