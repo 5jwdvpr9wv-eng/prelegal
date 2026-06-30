@@ -2,54 +2,238 @@
 
 import { useEffect, useRef, useState } from "react";
 
-interface NDAFormData {
-  party1Name: string;
-  party1Address: string;
-  party1Email: string;
-  party1SignatoryName: string;
-  party1SignatoryTitle: string;
-  party2Name: string;
-  party2Address: string;
-  party2Email: string;
-  party2SignatoryName: string;
-  party2SignatoryTitle: string;
-  purpose: string;
-  effectiveDate: string;
-  mndaTerm: string;
-  termOfConfidentiality: string;
-  governingLaw: string;
-  jurisdiction: string;
+// ── Generic types ─────────────────────────────────────────────────────────────
+
+interface FieldDef {
+  key: string;
+  label: string;
+  required: boolean;
+  fieldType: "text" | "date" | "textarea" | "email";
+  placeholder: string;
 }
 
-const empty: NDAFormData = {
-  party1Name: "",
-  party1Address: "",
-  party1Email: "",
-  party1SignatoryName: "",
-  party1SignatoryTitle: "",
-  party2Name: "",
-  party2Address: "",
-  party2Email: "",
-  party2SignatoryName: "",
-  party2SignatoryTitle: "",
-  purpose: "",
-  effectiveDate: "",
-  mndaTerm: "",
-  termOfConfidentiality: "",
-  governingLaw: "",
-  jurisdiction: "",
-};
+interface DocConfig {
+  docType: string;
+  name: string;
+  requiredFieldKeys: string[];
+  fields: FieldDef[];
+}
 
-const REQUIRED_FIELDS: (keyof NDAFormData)[] = [
-  "party1Name",
-  "party2Name",
-  "purpose",
-  "effectiveDate",
-  "mndaTerm",
-  "termOfConfidentiality",
-  "governingLaw",
-  "jurisdiction",
+type FormData = Record<string, string>;
+
+function emptyFormData(config: DocConfig): FormData {
+  return Object.fromEntries(config.fields.map((f) => [f.key, ""]));
+}
+
+// ── Document configs (mirrors backend REGISTRY) ───────────────────────────────
+
+const _NDA_FIELDS: FieldDef[] = [
+  { key: "party1Name", label: "Party 1 Legal Name", required: true, fieldType: "text", placeholder: "Acme Corp." },
+  { key: "party1Address", label: "Party 1 Address", required: false, fieldType: "text", placeholder: "123 Main St, San Francisco, CA 94105" },
+  { key: "party1Email", label: "Party 1 Email", required: false, fieldType: "email", placeholder: "legal@acme.com" },
+  { key: "party1SignatoryName", label: "Party 1 Signatory Name", required: false, fieldType: "text", placeholder: "Jane Smith" },
+  { key: "party1SignatoryTitle", label: "Party 1 Signatory Title", required: false, fieldType: "text", placeholder: "Chief Executive Officer" },
+  { key: "party2Name", label: "Party 2 Legal Name", required: true, fieldType: "text", placeholder: "Globex Inc." },
+  { key: "party2Address", label: "Party 2 Address", required: false, fieldType: "text", placeholder: "456 Market St, New York, NY 10001" },
+  { key: "party2Email", label: "Party 2 Email", required: false, fieldType: "email", placeholder: "legal@globex.com" },
+  { key: "party2SignatoryName", label: "Party 2 Signatory Name", required: false, fieldType: "text", placeholder: "John Doe" },
+  { key: "party2SignatoryTitle", label: "Party 2 Signatory Title", required: false, fieldType: "text", placeholder: "Chief Executive Officer" },
+  { key: "purpose", label: "Purpose", required: true, fieldType: "textarea", placeholder: "evaluating a potential business relationship between the parties" },
+  { key: "effectiveDate", label: "Effective Date", required: true, fieldType: "date", placeholder: "" },
+  { key: "mndaTerm", label: "MNDA Term", required: true, fieldType: "text", placeholder: "2 years from Effective Date" },
+  { key: "termOfConfidentiality", label: "Term of Confidentiality", required: true, fieldType: "text", placeholder: "3 years following expiration or termination" },
+  { key: "governingLaw", label: "Governing Law (State)", required: true, fieldType: "text", placeholder: "Delaware" },
+  { key: "jurisdiction", label: "Jurisdiction", required: true, fieldType: "text", placeholder: "Wilmington, Delaware" },
 ];
+
+const _NDA_REQUIRED = ["party1Name", "party2Name", "purpose", "effectiveDate", "mndaTerm", "termOfConfidentiality", "governingLaw", "jurisdiction"];
+
+const DOCUMENT_CONFIGS: Record<string, DocConfig> = {
+  mutual_nda: {
+    docType: "mutual_nda",
+    name: "Mutual Non-Disclosure Agreement",
+    requiredFieldKeys: _NDA_REQUIRED,
+    fields: _NDA_FIELDS,
+  },
+  mutual_nda_coverpage: {
+    docType: "mutual_nda_coverpage",
+    name: "Mutual NDA Cover Page",
+    requiredFieldKeys: _NDA_REQUIRED,
+    fields: _NDA_FIELDS,
+  },
+  cloud_service_agreement: {
+    docType: "cloud_service_agreement",
+    name: "Cloud Service Agreement",
+    requiredFieldKeys: ["providerName", "customerName", "cloudServiceDescription", "orderDate", "subscriptionPeriod", "fees", "governingLaw", "chosenCourts"],
+    fields: [
+      { key: "providerName", label: "Provider Name", required: true, fieldType: "text", placeholder: "Acme Cloud Inc." },
+      { key: "customerName", label: "Customer Name", required: true, fieldType: "text", placeholder: "Globex Corp." },
+      { key: "cloudServiceDescription", label: "Cloud Service Description", required: true, fieldType: "textarea", placeholder: "cloud-based project management platform" },
+      { key: "orderDate", label: "Order Date", required: true, fieldType: "date", placeholder: "" },
+      { key: "subscriptionPeriod", label: "Subscription Period", required: true, fieldType: "text", placeholder: "1 year" },
+      { key: "nonRenewalNoticeDate", label: "Non-Renewal Notice", required: false, fieldType: "text", placeholder: "30 days before end of Subscription Period" },
+      { key: "fees", label: "Fees", required: true, fieldType: "text", placeholder: "$500/month" },
+      { key: "paymentProcess", label: "Payment Process", required: false, fieldType: "text", placeholder: "monthly invoicing, net 30" },
+      { key: "generalCapAmount", label: "General Liability Cap", required: false, fieldType: "text", placeholder: "fees paid in the prior 12 months" },
+      { key: "governingLaw", label: "Governing Law", required: true, fieldType: "text", placeholder: "Delaware" },
+      { key: "chosenCourts", label: "Chosen Courts", required: true, fieldType: "text", placeholder: "courts located in Wilmington, Delaware" },
+    ],
+  },
+  design_partner: {
+    docType: "design_partner",
+    name: "Design Partner Agreement",
+    requiredFieldKeys: ["providerName", "partnerName", "productDescription", "effectiveDate", "term", "governingLaw", "chosenCourts"],
+    fields: [
+      { key: "providerName", label: "Provider Name", required: true, fieldType: "text", placeholder: "Acme Inc." },
+      { key: "partnerName", label: "Partner Name", required: true, fieldType: "text", placeholder: "Globex Corp." },
+      { key: "productDescription", label: "Product Description", required: true, fieldType: "textarea", placeholder: "AI-powered analytics dashboard" },
+      { key: "programDescription", label: "Program Description", required: false, fieldType: "textarea", placeholder: "quarterly feedback sessions and product testing" },
+      { key: "effectiveDate", label: "Effective Date", required: true, fieldType: "date", placeholder: "" },
+      { key: "term", label: "Term", required: true, fieldType: "text", placeholder: "6 months" },
+      { key: "fees", label: "Fees", required: false, fieldType: "text", placeholder: "none" },
+      { key: "governingLaw", label: "Governing Law", required: true, fieldType: "text", placeholder: "Delaware" },
+      { key: "chosenCourts", label: "Chosen Courts", required: true, fieldType: "text", placeholder: "courts located in Wilmington, Delaware" },
+      { key: "noticeAddress", label: "Notice Address", required: false, fieldType: "text", placeholder: "" },
+    ],
+  },
+  sla: {
+    docType: "sla",
+    name: "Service Level Agreement",
+    requiredFieldKeys: ["providerName", "customerName", "cloudServiceName", "effectiveDate", "targetUptime"],
+    fields: [
+      { key: "providerName", label: "Provider Name", required: true, fieldType: "text", placeholder: "Acme Cloud Inc." },
+      { key: "customerName", label: "Customer Name", required: true, fieldType: "text", placeholder: "Globex Corp." },
+      { key: "cloudServiceName", label: "Cloud Service Name", required: true, fieldType: "text", placeholder: "AcmeCloud Platform" },
+      { key: "effectiveDate", label: "Effective Date", required: true, fieldType: "date", placeholder: "" },
+      { key: "targetUptime", label: "Target Uptime", required: true, fieldType: "text", placeholder: "99.9%" },
+      { key: "targetResponseTime", label: "Target Response Time", required: false, fieldType: "text", placeholder: "within 1 hour for critical issues" },
+      { key: "scheduledDowntime", label: "Scheduled Downtime", required: false, fieldType: "text", placeholder: "Sundays 2am-4am UTC" },
+      { key: "uptimeCredit", label: "Uptime Credit", required: false, fieldType: "text", placeholder: "10% of monthly fees per 0.1% below target" },
+      { key: "responseTimeCredit", label: "Response Time Credit", required: false, fieldType: "text", placeholder: "" },
+    ],
+  },
+  professional_services: {
+    docType: "professional_services",
+    name: "Professional Services Agreement",
+    requiredFieldKeys: ["providerName", "customerName", "servicesDescription", "deliverables", "fees", "effectiveDate", "governingLaw", "chosenCourts"],
+    fields: [
+      { key: "providerName", label: "Provider Name", required: true, fieldType: "text", placeholder: "Acme Consulting Inc." },
+      { key: "customerName", label: "Customer Name", required: true, fieldType: "text", placeholder: "Globex Corp." },
+      { key: "servicesDescription", label: "Services Description", required: true, fieldType: "textarea", placeholder: "software development and implementation services" },
+      { key: "deliverables", label: "Deliverables", required: true, fieldType: "textarea", placeholder: "custom API integration, documentation, and training" },
+      { key: "timeline", label: "Timeline", required: false, fieldType: "textarea", placeholder: "completion within 90 days of project start" },
+      { key: "fees", label: "Fees", required: true, fieldType: "text", placeholder: "$150/hour" },
+      { key: "paymentTerms", label: "Payment Terms", required: false, fieldType: "text", placeholder: "monthly invoicing, net 30" },
+      { key: "effectiveDate", label: "Effective Date", required: true, fieldType: "date", placeholder: "" },
+      { key: "intellectualPropertyTerms", label: "Intellectual Property", required: false, fieldType: "textarea", placeholder: "Customer owns all work product upon full payment" },
+      { key: "governingLaw", label: "Governing Law", required: true, fieldType: "text", placeholder: "Delaware" },
+      { key: "chosenCourts", label: "Chosen Courts", required: true, fieldType: "text", placeholder: "courts located in Wilmington, Delaware" },
+    ],
+  },
+  data_processing: {
+    docType: "data_processing",
+    name: "Data Processing Agreement",
+    requiredFieldKeys: ["processorName", "controllerName", "serviceDescription", "personalDataCategories", "dataSubjectCategories", "processingPurpose", "effectiveDate", "governingLaw"],
+    fields: [
+      { key: "processorName", label: "Processor Name", required: true, fieldType: "text", placeholder: "Acme SaaS Inc." },
+      { key: "controllerName", label: "Controller Name", required: true, fieldType: "text", placeholder: "Globex Corp." },
+      { key: "serviceDescription", label: "Service Description", required: true, fieldType: "textarea", placeholder: "cloud-based CRM and data analytics services" },
+      { key: "personalDataCategories", label: "Personal Data Categories", required: true, fieldType: "textarea", placeholder: "names, email addresses, usage data" },
+      { key: "dataSubjectCategories", label: "Data Subject Categories", required: true, fieldType: "text", placeholder: "customers and employees" },
+      { key: "processingPurpose", label: "Processing Purpose", required: true, fieldType: "textarea", placeholder: "providing and improving the cloud service" },
+      { key: "processingDuration", label: "Processing Duration", required: false, fieldType: "text", placeholder: "duration of the service agreement plus 30 days" },
+      { key: "specialCategoryData", label: "Special Category Data", required: false, fieldType: "text", placeholder: "none" },
+      { key: "effectiveDate", label: "Effective Date", required: true, fieldType: "date", placeholder: "" },
+      { key: "governingLaw", label: "Governing Law", required: true, fieldType: "text", placeholder: "Delaware" },
+    ],
+  },
+  software_license: {
+    docType: "software_license",
+    name: "Software License Agreement",
+    requiredFieldKeys: ["licensorName", "licenseeName", "softwareDescription", "licenseScope", "fees", "term", "effectiveDate", "governingLaw", "chosenCourts"],
+    fields: [
+      { key: "licensorName", label: "Licensor Name", required: true, fieldType: "text", placeholder: "Acme Software Inc." },
+      { key: "licenseeName", label: "Licensee Name", required: true, fieldType: "text", placeholder: "Globex Corp." },
+      { key: "softwareDescription", label: "Software Description", required: true, fieldType: "textarea", placeholder: "enterprise analytics software platform" },
+      { key: "licenseScope", label: "License Scope", required: true, fieldType: "textarea", placeholder: "install and use on up to 100 user seats for internal business purposes" },
+      { key: "licenseRestrictions", label: "License Restrictions", required: false, fieldType: "textarea", placeholder: "no sublicensing, no reverse engineering" },
+      { key: "fees", label: "License Fees", required: true, fieldType: "text", placeholder: "$10,000/year" },
+      { key: "paymentTerms", label: "Payment Terms", required: false, fieldType: "text", placeholder: "annually in advance" },
+      { key: "term", label: "License Term", required: true, fieldType: "text", placeholder: "2 years" },
+      { key: "maintenanceSupport", label: "Maintenance and Support", required: false, fieldType: "textarea", placeholder: "email support during business hours, quarterly updates" },
+      { key: "effectiveDate", label: "Effective Date", required: true, fieldType: "date", placeholder: "" },
+      { key: "governingLaw", label: "Governing Law", required: true, fieldType: "text", placeholder: "Delaware" },
+      { key: "chosenCourts", label: "Chosen Courts", required: true, fieldType: "text", placeholder: "courts located in Wilmington, Delaware" },
+    ],
+  },
+  partnership: {
+    docType: "partnership",
+    name: "Partnership Agreement",
+    requiredFieldKeys: ["party1Name", "party2Name", "partnershipPurpose", "party1Role", "party2Role", "revenueSharingTerms", "effectiveDate", "term", "governingLaw", "chosenCourts"],
+    fields: [
+      { key: "party1Name", label: "Party 1 Name", required: true, fieldType: "text", placeholder: "Acme Inc." },
+      { key: "party2Name", label: "Party 2 Name", required: true, fieldType: "text", placeholder: "Globex Corp." },
+      { key: "partnershipPurpose", label: "Partnership Purpose", required: true, fieldType: "textarea", placeholder: "jointly developing and marketing an AI-powered software product" },
+      { key: "party1Role", label: "Party 1 Role", required: true, fieldType: "textarea", placeholder: "product development, engineering, and technical operations" },
+      { key: "party2Role", label: "Party 2 Role", required: true, fieldType: "textarea", placeholder: "sales, marketing, and customer relationships" },
+      { key: "revenueSharingTerms", label: "Revenue Sharing", required: true, fieldType: "text", placeholder: "50% to Party 1, 50% to Party 2" },
+      { key: "intellectualPropertyTerms", label: "Intellectual Property", required: false, fieldType: "textarea", placeholder: "jointly owned by both parties" },
+      { key: "effectiveDate", label: "Effective Date", required: true, fieldType: "date", placeholder: "" },
+      { key: "term", label: "Term", required: true, fieldType: "text", placeholder: "2 years" },
+      { key: "governingLaw", label: "Governing Law", required: true, fieldType: "text", placeholder: "Delaware" },
+      { key: "chosenCourts", label: "Chosen Courts", required: true, fieldType: "text", placeholder: "courts located in Wilmington, Delaware" },
+    ],
+  },
+  pilot: {
+    docType: "pilot",
+    name: "Pilot Agreement",
+    requiredFieldKeys: ["providerName", "customerName", "productDescription", "effectiveDate", "pilotPeriod", "governingLaw", "chosenCourts"],
+    fields: [
+      { key: "providerName", label: "Provider Name", required: true, fieldType: "text", placeholder: "Acme Inc." },
+      { key: "customerName", label: "Customer Name", required: true, fieldType: "text", placeholder: "Globex Corp." },
+      { key: "productDescription", label: "Product Description", required: true, fieldType: "textarea", placeholder: "cloud-based AI analytics platform" },
+      { key: "evaluationPurpose", label: "Evaluation Purpose", required: false, fieldType: "textarea", placeholder: "test integration with existing systems and evaluate performance" },
+      { key: "effectiveDate", label: "Effective Date", required: true, fieldType: "date", placeholder: "" },
+      { key: "pilotPeriod", label: "Pilot Period", required: true, fieldType: "text", placeholder: "90 days" },
+      { key: "fees", label: "Fees", required: false, fieldType: "text", placeholder: "no fee" },
+      { key: "generalCapAmount", label: "General Liability Cap", required: false, fieldType: "text", placeholder: "$10,000" },
+      { key: "governingLaw", label: "Governing Law", required: true, fieldType: "text", placeholder: "Delaware" },
+      { key: "chosenCourts", label: "Chosen Courts", required: true, fieldType: "text", placeholder: "courts located in Wilmington, Delaware" },
+      { key: "noticeAddress", label: "Notice Address", required: false, fieldType: "text", placeholder: "" },
+    ],
+  },
+  business_associate: {
+    docType: "business_associate",
+    name: "Business Associate Agreement",
+    requiredFieldKeys: ["providerName", "companyName", "serviceDescription", "baaEffectiveDate", "breachNotificationPeriod", "governingLaw"],
+    fields: [
+      { key: "providerName", label: "Provider Name", required: true, fieldType: "text", placeholder: "Acme Health Tech Inc." },
+      { key: "companyName", label: "Covered Entity Name", required: true, fieldType: "text", placeholder: "Metro Health System" },
+      { key: "serviceDescription", label: "Service Description", required: true, fieldType: "textarea", placeholder: "electronic health record software and data storage services" },
+      { key: "baaEffectiveDate", label: "Effective Date", required: true, fieldType: "date", placeholder: "" },
+      { key: "agreementReference", label: "Main Agreement Reference", required: false, fieldType: "text", placeholder: "Cloud Service Agreement" },
+      { key: "breachNotificationPeriod", label: "Breach Notification Period", required: true, fieldType: "text", placeholder: "60 days" },
+      { key: "limitationsOnDisclosures", label: "Limitations on Disclosures", required: false, fieldType: "textarea", placeholder: "PHI may not be used for marketing purposes" },
+      { key: "governingLaw", label: "Governing Law", required: true, fieldType: "text", placeholder: "Delaware" },
+    ],
+  },
+  ai_addendum: {
+    docType: "ai_addendum",
+    name: "AI Addendum",
+    requiredFieldKeys: ["providerName", "customerName", "baseAgreementName", "aiServiceDescription", "effectiveDate", "governingLaw"],
+    fields: [
+      { key: "providerName", label: "Provider Name", required: true, fieldType: "text", placeholder: "Acme AI Inc." },
+      { key: "customerName", label: "Customer Name", required: true, fieldType: "text", placeholder: "Globex Corp." },
+      { key: "baseAgreementName", label: "Base Agreement Name", required: true, fieldType: "text", placeholder: "Cloud Service Agreement" },
+      { key: "baseAgreementDate", label: "Base Agreement Date", required: false, fieldType: "date", placeholder: "" },
+      { key: "aiServiceDescription", label: "AI Service Description", required: true, fieldType: "textarea", placeholder: "AI-powered content generation and analysis features" },
+      { key: "effectiveDate", label: "Effective Date", required: true, fieldType: "date", placeholder: "" },
+      { key: "modelTrainingPolicy", label: "Model Training Policy", required: false, fieldType: "textarea", placeholder: "customer data will not be used to train AI models without explicit consent" },
+      { key: "liabilityTerms", label: "AI Liability Terms", required: false, fieldType: "textarea", placeholder: "provider is not liable for decisions made based solely on AI-generated content" },
+      { key: "governingLaw", label: "Governing Law", required: true, fieldType: "text", placeholder: "Delaware" },
+    ],
+  },
+};
 
 interface Message {
   role: "user" | "assistant";
@@ -95,18 +279,18 @@ function CoverRow({
   );
 }
 
-function NDAPreview({ data }: { data: NDAFormData }) {
+function NDAPreview({ data }: { data: FormData }) {
   return (
     <div className="nda-body">
       {/* Cover Page */}
       <SectionRule>Cover Page</SectionRule>
       <div className="mb-2">
         <CoverRow label="Effective Date">
-          <Val>{data.effectiveDate}</Val>
+          <Val>{data.effectiveDate ?? ""}</Val>
         </CoverRow>
         <CoverRow label="Party 1">
           <div>
-            <Val>{data.party1Name}</Val>
+            <Val>{data.party1Name ?? ""}</Val>
           </div>
           {data.party1Address && (
             <div className="text-slate-400 text-[10px] mt-0.5">
@@ -119,7 +303,7 @@ function NDAPreview({ data }: { data: NDAFormData }) {
         </CoverRow>
         <CoverRow label="Party 2">
           <div>
-            <Val>{data.party2Name}</Val>
+            <Val>{data.party2Name ?? ""}</Val>
           </div>
           {data.party2Address && (
             <div className="text-slate-400 text-[10px] mt-0.5">
@@ -131,19 +315,19 @@ function NDAPreview({ data }: { data: NDAFormData }) {
           )}
         </CoverRow>
         <CoverRow label="Purpose">
-          <Val>{data.purpose}</Val>
+          <Val>{data.purpose ?? ""}</Val>
         </CoverRow>
         <CoverRow label="MNDA Term">
-          <Val>{data.mndaTerm}</Val>
+          <Val>{data.mndaTerm ?? ""}</Val>
         </CoverRow>
         <CoverRow label="Confidentiality">
-          <Val>{data.termOfConfidentiality}</Val>
+          <Val>{data.termOfConfidentiality ?? ""}</Val>
         </CoverRow>
         <CoverRow label="Governing Law">
-          State of <Val>{data.governingLaw}</Val>
+          State of <Val>{data.governingLaw ?? ""}</Val>
         </CoverRow>
         <CoverRow label="Jurisdiction">
-          <Val>{data.jurisdiction}</Val>
+          <Val>{data.jurisdiction ?? ""}</Val>
         </CoverRow>
       </div>
 
@@ -155,7 +339,7 @@ function NDAPreview({ data }: { data: NDAFormData }) {
         (which incorporates these Standard Terms and the Cover Page (defined
         below)) (&ldquo;<strong>MNDA</strong>&rdquo;) allows each party (&ldquo;
         <strong>Disclosing Party</strong>&rdquo;) to disclose or make available
-        information in connection with the <Val>{data.purpose}</Val> which (1)
+        information in connection with the <Val>{data.purpose ?? ""}</Val> which (1)
         the Disclosing Party identifies to the receiving party (&ldquo;
         <strong>Receiving Party</strong>&rdquo;) as &ldquo;confidential&rdquo;,
         &ldquo;proprietary&rdquo;, or the like or (2) should be reasonably
@@ -176,12 +360,12 @@ function NDAPreview({ data }: { data: NDAFormData }) {
       <p>
         <strong>2. Use and Protection of Confidential Information.</strong> The
         Receiving Party shall: (a) use Confidential Information solely for the{" "}
-        <Val>{data.purpose}</Val>; (b) not disclose Confidential Information to
+        <Val>{data.purpose ?? ""}</Val>; (b) not disclose Confidential Information to
         third parties without the Disclosing Party&apos;s prior written
         approval, except that the Receiving Party may disclose Confidential
         Information to its employees, agents, advisors, contractors and other
         representatives having a reasonable need to know for the{" "}
-        <Val>{data.purpose}</Val>, provided these representatives are bound by
+        <Val>{data.purpose ?? ""}</Val>, provided these representatives are bound by
         confidentiality obligations no less protective of the Disclosing Party
         than the applicable terms in this MNDA and the Receiving Party remains
         responsible for their compliance with this MNDA; and (c) protect
@@ -214,11 +398,11 @@ function NDAPreview({ data }: { data: NDAFormData }) {
 
       <p>
         <strong>5. Term and Termination.</strong> This MNDA commences on the{" "}
-        <Val>{data.effectiveDate}</Val> and expires at the end of the{" "}
-        <Val>{data.mndaTerm}</Val>. Either party may terminate this MNDA for any
+        <Val>{data.effectiveDate ?? ""}</Val> and expires at the end of the{" "}
+        <Val>{data.mndaTerm ?? ""}</Val>. Either party may terminate this MNDA for any
         or no reason upon written notice to the other party. The Receiving
         Party&apos;s obligations relating to Confidential Information will
-        survive for the <Val>{data.termOfConfidentiality}</Val>, despite any
+        survive for the <Val>{data.termOfConfidentiality ?? ""}</Val>, despite any
         expiration or termination of this MNDA.
       </p>
 
@@ -254,13 +438,13 @@ function NDAPreview({ data }: { data: NDAFormData }) {
       <p>
         <strong>9. Governing Law and Jurisdiction.</strong> This MNDA and all
         matters relating hereto are governed by, and construed in accordance
-        with, the laws of the State of <Val>{data.governingLaw}</Val>, without
+        with, the laws of the State of <Val>{data.governingLaw ?? ""}</Val>, without
         regard to the conflict of laws provisions of such State of{" "}
-        <Val>{data.governingLaw}</Val>. Any legal suit, action, or proceeding
+        <Val>{data.governingLaw ?? ""}</Val>. Any legal suit, action, or proceeding
         relating to this MNDA must be instituted in the federal or state courts
-        located in <Val>{data.jurisdiction}</Val>. Each party irrevocably
+        located in <Val>{data.jurisdiction ?? ""}</Val>. Each party irrevocably
         submits to the exclusive jurisdiction of such{" "}
-        <Val>{data.jurisdiction}</Val> in any such suit, action, or proceeding.
+        <Val>{data.jurisdiction ?? ""}</Val> in any such suit, action, or proceeding.
       </p>
 
       <p>
@@ -302,32 +486,32 @@ function NDAPreview({ data }: { data: NDAFormData }) {
         <div className="grid grid-cols-2 gap-10">
           <div>
             <p className="text-[11px] font-semibold text-ink mb-5">
-              <Val>{data.party1Name}</Val>
+              <Val>{data.party1Name ?? ""}</Val>
             </p>
             <div className="border-b border-ink mb-1.5 h-8" />
             <p className="text-[9px] uppercase tracking-[0.15em] text-slate-400 mb-3">
               Signature
             </p>
             <p className="text-[11px] font-medium text-ink">
-              <Val>{data.party1SignatoryName}</Val>
+              <Val>{data.party1SignatoryName ?? ""}</Val>
             </p>
             <p className="text-[10px] text-slate-400 mt-0.5">
-              <Val>{data.party1SignatoryTitle}</Val>
+              <Val>{data.party1SignatoryTitle ?? ""}</Val>
             </p>
           </div>
           <div>
             <p className="text-[11px] font-semibold text-ink mb-5">
-              <Val>{data.party2Name}</Val>
+              <Val>{data.party2Name ?? ""}</Val>
             </p>
             <div className="border-b border-ink mb-1.5 h-8" />
             <p className="text-[9px] uppercase tracking-[0.15em] text-slate-400 mb-3">
               Signature
             </p>
             <p className="text-[11px] font-medium text-ink">
-              <Val>{data.party2SignatoryName}</Val>
+              <Val>{data.party2SignatoryName ?? ""}</Val>
             </p>
             <p className="text-[10px] text-slate-400 mt-0.5">
-              <Val>{data.party2SignatoryTitle}</Val>
+              <Val>{data.party2SignatoryTitle ?? ""}</Val>
             </p>
           </div>
         </div>
@@ -335,6 +519,24 @@ function NDAPreview({ data }: { data: NDAFormData }) {
 
       <p className="text-[9px] text-slate-300 mt-8 text-center font-sans tracking-wide">
         Common Paper Mutual Non-Disclosure Agreement Version 1.0 — CC BY 4.0
+      </p>
+    </div>
+  );
+}
+
+function GenericPreview({ config, data }: { config: DocConfig; data: FormData }) {
+  return (
+    <div className="nda-body">
+      <SectionRule>{config.name}</SectionRule>
+      <div className="mb-2">
+        {config.fields.map((field) => (
+          <CoverRow key={field.key} label={field.label}>
+            <Val>{data[field.key] ?? ""}</Val>
+          </CoverRow>
+        ))}
+      </div>
+      <p className="text-[9px] text-slate-300 mt-8 text-center font-sans tracking-wide">
+        Common Paper {config.name} — CC BY 4.0
       </p>
     </div>
   );
@@ -350,10 +552,10 @@ function formatDate(iso: string): string {
   });
 }
 
-async function generatePDF(data: NDAFormData): Promise<void> {
+async function generatePDF(data: FormData): Promise<void> {
   const { default: jsPDF } = await import("jspdf");
 
-  const f = (v: string, fallback = "[___________]") => v.trim() || fallback;
+  const f = (v: string, fallback = "[___________]") => (v ?? "").trim() || fallback;
   const purpose = f(data.purpose).replace(/\s+/g, " ");
   const effectiveDate = formatDate(data.effectiveDate) || f(data.effectiveDate);
   const mndaTerm = f(data.mndaTerm);
@@ -379,7 +581,6 @@ async function generatePDF(data: NDAFormData): Promise<void> {
     }
   };
 
-  // ── Title ──────────────────────────────────────────────────────────────────
   doc.setFontSize(13);
   doc.setFont("helvetica", "bold");
   doc.text("MUTUAL NON-DISCLOSURE AGREEMENT", PW / 2, y, { align: "center" });
@@ -389,7 +590,6 @@ async function generatePDF(data: NDAFormData): Promise<void> {
   doc.text("Common Paper MNDA Version 1.0", PW / 2, y, { align: "center" });
   y += 10;
 
-  // ── Cover Page ─────────────────────────────────────────────────────────────
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
   doc.text("COVER PAGE", PW / 2, y, { align: "center" });
@@ -419,9 +619,9 @@ async function generatePDF(data: NDAFormData): Promise<void> {
   doc.text("Party 1", ML, y);
   y += LH;
   coverRow("Legal Name", f(data.party1Name), 6);
-  if (data.party1Address.trim()) coverRow("Address", data.party1Address, 6);
-  if (data.party1Email.trim()) coverRow("Email", data.party1Email, 6);
-  if (data.party1SignatoryName.trim())
+  if ((data.party1Address ?? "").trim()) coverRow("Address", data.party1Address, 6);
+  if ((data.party1Email ?? "").trim()) coverRow("Email", data.party1Email, 6);
+  if ((data.party1SignatoryName ?? "").trim())
     coverRow(
       "Signatory",
       `${data.party1SignatoryName}${data.party1SignatoryTitle ? ", " + data.party1SignatoryTitle : ""}`,
@@ -434,9 +634,9 @@ async function generatePDF(data: NDAFormData): Promise<void> {
   doc.text("Party 2", ML, y);
   y += LH;
   coverRow("Legal Name", f(data.party2Name), 6);
-  if (data.party2Address.trim()) coverRow("Address", data.party2Address, 6);
-  if (data.party2Email.trim()) coverRow("Email", data.party2Email, 6);
-  if (data.party2SignatoryName.trim())
+  if ((data.party2Address ?? "").trim()) coverRow("Address", data.party2Address, 6);
+  if ((data.party2Email ?? "").trim()) coverRow("Email", data.party2Email, 6);
+  if ((data.party2SignatoryName ?? "").trim())
     coverRow(
       "Signatory",
       `${data.party2SignatoryName}${data.party2SignatoryTitle ? ", " + data.party2SignatoryTitle : ""}`,
@@ -450,7 +650,6 @@ async function generatePDF(data: NDAFormData): Promise<void> {
   coverRow("Governing Law", `State of ${govLaw}`);
   coverRow("Jurisdiction", jurisdiction);
 
-  // ── Standard Terms ─────────────────────────────────────────────────────────
   doc.addPage();
   y = MT;
 
@@ -481,73 +680,18 @@ async function generatePDF(data: NDAFormData): Promise<void> {
     y += 4;
   };
 
-  clause(
-    "1",
-    "Introduction",
-    `This Mutual Non-Disclosure Agreement (which incorporates these Standard Terms and the Cover Page (defined below)) ("MNDA") allows each party ("Disclosing Party") to disclose or make available information in connection with the ${purpose} which (1) the Disclosing Party identifies to the receiving party ("Receiving Party") as "confidential", "proprietary", or the like or (2) should be reasonably understood as confidential or proprietary due to its nature and the circumstances of its disclosure ("Confidential Information"). Each party's Confidential Information also includes the existence and status of the parties' discussions and information on the Cover Page. Confidential Information includes technical or business information, product designs or roadmaps, requirements, pricing, security and compliance documentation, technology, inventions and know-how. To use this MNDA, the parties must complete and sign a cover page incorporating these Standard Terms ("Cover Page"). Each party is identified on the Cover Page and capitalized terms have the meanings given herein or on the Cover Page.`
-  );
+  clause("1", "Introduction", `This Mutual Non-Disclosure Agreement (which incorporates these Standard Terms and the Cover Page (defined below)) ("MNDA") allows each party ("Disclosing Party") to disclose or make available information in connection with the ${purpose} which (1) the Disclosing Party identifies to the receiving party ("Receiving Party") as "confidential", "proprietary", or the like or (2) should be reasonably understood as confidential or proprietary due to its nature and the circumstances of its disclosure ("Confidential Information"). Each party's Confidential Information also includes the existence and status of the parties' discussions and information on the Cover Page. Confidential Information includes technical or business information, product designs or roadmaps, requirements, pricing, security and compliance documentation, technology, inventions and know-how. To use this MNDA, the parties must complete and sign a cover page incorporating these Standard Terms ("Cover Page"). Each party is identified on the Cover Page and capitalized terms have the meanings given herein or on the Cover Page.`);
+  clause("2", "Use and Protection of Confidential Information", `The Receiving Party shall: (a) use Confidential Information solely for the ${purpose}; (b) not disclose Confidential Information to third parties without the Disclosing Party's prior written approval, except that the Receiving Party may disclose Confidential Information to its employees, agents, advisors, contractors and other representatives having a reasonable need to know for the ${purpose}, provided these representatives are bound by confidentiality obligations no less protective of the Disclosing Party than the applicable terms in this MNDA and the Receiving Party remains responsible for their compliance with this MNDA; and (c) protect Confidential Information using at least the same protections the Receiving Party uses for its own similar information but no less than a reasonable standard of care.`);
+  clause("3", "Exceptions", `The Receiving Party's obligations in this MNDA do not apply to information that it can demonstrate: (a) is or becomes publicly available through no fault of the Receiving Party; (b) it rightfully knew or possessed prior to receipt from the Disclosing Party without confidentiality restrictions; (c) it rightfully obtained from a third party without confidentiality restrictions; or (d) it independently developed without using or referencing the Confidential Information.`);
+  clause("4", "Disclosures Required by Law", `The Receiving Party may disclose Confidential Information to the extent required by law, regulation or regulatory authority, subpoena or court order, provided (to the extent legally permitted) it provides the Disclosing Party reasonable advance notice of the required disclosure and reasonably cooperates, at the Disclosing Party's expense, with the Disclosing Party's efforts to obtain confidential treatment for the Confidential Information.`);
+  clause("5", "Term and Termination", `This MNDA commences on the ${effectiveDate} and expires at the end of the ${mndaTerm}. Either party may terminate this MNDA for any or no reason upon written notice to the other party. The Receiving Party's obligations relating to Confidential Information will survive for the ${termOfConf}, despite any expiration or termination of this MNDA.`);
+  clause("6", "Return or Destruction of Confidential Information", `Upon expiration or termination of this MNDA or upon the Disclosing Party's earlier request, the Receiving Party will: (a) cease using Confidential Information; (b) promptly after the Disclosing Party's written request, destroy all Confidential Information in the Receiving Party's possession or control or return it to the Disclosing Party; and (c) if requested by the Disclosing Party, confirm its compliance with these obligations in writing. As an exception to subsection (b), the Receiving Party may retain Confidential Information in accordance with its standard backup or record retention policies or as required by law, but the terms of this MNDA will continue to apply to the retained Confidential Information.`);
+  clause("7", "Proprietary Rights", `The Disclosing Party retains all of its intellectual property and other rights in its Confidential Information and its disclosure to the Receiving Party grants no license under such rights.`);
+  clause("8", "Disclaimer", `ALL CONFIDENTIAL INFORMATION IS PROVIDED "AS IS", WITH ALL FAULTS, AND WITHOUT WARRANTIES, INCLUDING THE IMPLIED WARRANTIES OF TITLE, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.`);
+  clause("9", "Governing Law and Jurisdiction", `This MNDA and all matters relating hereto are governed by, and construed in accordance with, the laws of the State of ${govLaw}, without regard to the conflict of laws provisions of such ${govLaw}. Any legal suit, action, or proceeding relating to this MNDA must be instituted in the federal or state courts located in ${jurisdiction}. Each party irrevocably submits to the exclusive jurisdiction of such ${jurisdiction} in any such suit, action, or proceeding.`);
+  clause("10", "Equitable Relief", `A breach of this MNDA may cause irreparable harm for which monetary damages are an insufficient remedy. Upon a breach of this MNDA, the Disclosing Party is entitled to seek appropriate equitable relief, including an injunction, in addition to its other remedies.`);
+  clause("11", "General", `Neither party has an obligation under this MNDA to disclose Confidential Information to the other or proceed with any proposed transaction. Neither party may assign this MNDA without the prior written consent of the other party, except that either party may assign this MNDA in connection with a merger, reorganization, acquisition or other transfer of all or substantially all its assets or voting securities. Any assignment in violation of this Section is null and void. This MNDA will bind and inure to the benefit of each party's permitted successors and assigns. Waivers must be signed by the waiving party's authorized representative and cannot be implied from conduct. If any provision of this MNDA is held unenforceable, it will be limited to the minimum extent necessary so the rest of this MNDA remains in effect. This MNDA (including the Cover Page) constitutes the entire agreement of the parties with respect to its subject matter, and supersedes all prior and contemporaneous understandings, agreements, representations, and warranties, whether written or oral, regarding such subject matter. This MNDA may only be amended, modified, waived, or supplemented by an agreement in writing signed by both parties. Notices, requests and approvals under this MNDA must be sent in writing to the email or postal addresses on the Cover Page and are deemed delivered on receipt. This MNDA may be executed in counterparts, including electronic copies, each of which is deemed an original and which together form the same agreement.`);
 
-  clause(
-    "2",
-    "Use and Protection of Confidential Information",
-    `The Receiving Party shall: (a) use Confidential Information solely for the ${purpose}; (b) not disclose Confidential Information to third parties without the Disclosing Party's prior written approval, except that the Receiving Party may disclose Confidential Information to its employees, agents, advisors, contractors and other representatives having a reasonable need to know for the ${purpose}, provided these representatives are bound by confidentiality obligations no less protective of the Disclosing Party than the applicable terms in this MNDA and the Receiving Party remains responsible for their compliance with this MNDA; and (c) protect Confidential Information using at least the same protections the Receiving Party uses for its own similar information but no less than a reasonable standard of care.`
-  );
-
-  clause(
-    "3",
-    "Exceptions",
-    `The Receiving Party's obligations in this MNDA do not apply to information that it can demonstrate: (a) is or becomes publicly available through no fault of the Receiving Party; (b) it rightfully knew or possessed prior to receipt from the Disclosing Party without confidentiality restrictions; (c) it rightfully obtained from a third party without confidentiality restrictions; or (d) it independently developed without using or referencing the Confidential Information.`
-  );
-
-  clause(
-    "4",
-    "Disclosures Required by Law",
-    `The Receiving Party may disclose Confidential Information to the extent required by law, regulation or regulatory authority, subpoena or court order, provided (to the extent legally permitted) it provides the Disclosing Party reasonable advance notice of the required disclosure and reasonably cooperates, at the Disclosing Party's expense, with the Disclosing Party's efforts to obtain confidential treatment for the Confidential Information.`
-  );
-
-  clause(
-    "5",
-    "Term and Termination",
-    `This MNDA commences on the ${effectiveDate} and expires at the end of the ${mndaTerm}. Either party may terminate this MNDA for any or no reason upon written notice to the other party. The Receiving Party's obligations relating to Confidential Information will survive for the ${termOfConf}, despite any expiration or termination of this MNDA.`
-  );
-
-  clause(
-    "6",
-    "Return or Destruction of Confidential Information",
-    `Upon expiration or termination of this MNDA or upon the Disclosing Party's earlier request, the Receiving Party will: (a) cease using Confidential Information; (b) promptly after the Disclosing Party's written request, destroy all Confidential Information in the Receiving Party's possession or control or return it to the Disclosing Party; and (c) if requested by the Disclosing Party, confirm its compliance with these obligations in writing. As an exception to subsection (b), the Receiving Party may retain Confidential Information in accordance with its standard backup or record retention policies or as required by law, but the terms of this MNDA will continue to apply to the retained Confidential Information.`
-  );
-
-  clause(
-    "7",
-    "Proprietary Rights",
-    `The Disclosing Party retains all of its intellectual property and other rights in its Confidential Information and its disclosure to the Receiving Party grants no license under such rights.`
-  );
-
-  clause(
-    "8",
-    "Disclaimer",
-    `ALL CONFIDENTIAL INFORMATION IS PROVIDED "AS IS", WITH ALL FAULTS, AND WITHOUT WARRANTIES, INCLUDING THE IMPLIED WARRANTIES OF TITLE, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.`
-  );
-
-  clause(
-    "9",
-    "Governing Law and Jurisdiction",
-    `This MNDA and all matters relating hereto are governed by, and construed in accordance with, the laws of the State of ${govLaw}, without regard to the conflict of laws provisions of such ${govLaw}. Any legal suit, action, or proceeding relating to this MNDA must be instituted in the federal or state courts located in ${jurisdiction}. Each party irrevocably submits to the exclusive jurisdiction of such ${jurisdiction} in any such suit, action, or proceeding.`
-  );
-
-  clause(
-    "10",
-    "Equitable Relief",
-    `A breach of this MNDA may cause irreparable harm for which monetary damages are an insufficient remedy. Upon a breach of this MNDA, the Disclosing Party is entitled to seek appropriate equitable relief, including an injunction, in addition to its other remedies.`
-  );
-
-  clause(
-    "11",
-    "General",
-    `Neither party has an obligation under this MNDA to disclose Confidential Information to the other or proceed with any proposed transaction. Neither party may assign this MNDA without the prior written consent of the other party, except that either party may assign this MNDA in connection with a merger, reorganization, acquisition or other transfer of all or substantially all its assets or voting securities. Any assignment in violation of this Section is null and void. This MNDA will bind and inure to the benefit of each party's permitted successors and assigns. Waivers must be signed by the waiving party's authorized representative and cannot be implied from conduct. If any provision of this MNDA is held unenforceable, it will be limited to the minimum extent necessary so the rest of this MNDA remains in effect. This MNDA (including the Cover Page) constitutes the entire agreement of the parties with respect to its subject matter, and supersedes all prior and contemporaneous understandings, agreements, representations, and warranties, whether written or oral, regarding such subject matter. This MNDA may only be amended, modified, waived, or supplemented by an agreement in writing signed by both parties. Notices, requests and approvals under this MNDA must be sent in writing to the email or postal addresses on the Cover Page and are deemed delivered on receipt. This MNDA may be executed in counterparts, including electronic copies, each of which is deemed an original and which together form the same agreement.`
-  );
-
-  // ── Signatures ─────────────────────────────────────────────────────────────
   ensureSpace(55);
   y += 4;
   doc.setDrawColor(160, 160, 160);
@@ -578,8 +722,8 @@ async function generatePDF(data: NDAFormData): Promise<void> {
   y += 8;
 
   doc.setFontSize(9);
-  doc.text(f(data.party1SignatoryName), col1X, y);
-  doc.text(f(data.party2SignatoryName), col2X, y);
+  doc.text(f(data.party1SignatoryName, ""), col1X, y);
+  doc.text(f(data.party2SignatoryName, ""), col2X, y);
   y += LH;
 
   doc.setFontSize(8);
@@ -599,7 +743,61 @@ async function generatePDF(data: NDAFormData): Promise<void> {
   doc.save("mutual-nda.pdf");
 }
 
-// ── Form components ──────────────────────────────────────────────────────────
+async function generateGenericPDF(config: DocConfig, data: FormData): Promise<void> {
+  const { default: jsPDF } = await import("jspdf");
+
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const PW = doc.internal.pageSize.getWidth();
+  const PH = doc.internal.pageSize.getHeight();
+  const ML = 22, MR = 22, MT = 22, MB = 25;
+  const CW = PW - ML - MR;
+  let y = MT;
+  const LH = 5;
+  const LABEL_W = 60;
+
+  const ensureSpace = (h: number) => {
+    if (y + h > PH - MB) { doc.addPage(); y = MT; }
+  };
+
+  doc.setFontSize(13);
+  doc.setFont("helvetica", "bold");
+  doc.text(config.name.toUpperCase(), PW / 2, y, { align: "center" });
+  y += 7;
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
+  doc.text("Common Paper Standard Agreement", PW / 2, y, { align: "center" });
+  y += 10;
+
+  doc.setDrawColor(160, 160, 160);
+  doc.setLineWidth(0.3);
+  doc.line(ML, y, PW - MR, y);
+  y += 8;
+
+  config.fields.forEach((field) => {
+    const val = (data[field.key] ?? "").trim() || "[___________]";
+    const lines = doc.splitTextToSize(val, CW - LABEL_W);
+    ensureSpace(LH * lines.length + 3);
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.text(field.label, ML, y);
+    doc.setFont("helvetica", "normal");
+    doc.text(lines, ML + LABEL_W, y);
+    y += LH * lines.length + 2;
+  });
+
+  y += 8;
+  ensureSpace(20);
+  doc.setFontSize(7);
+  doc.setTextColor(140);
+  doc.text(
+    `Common Paper ${config.name} — free to use under CC BY 4.0`,
+    PW / 2, y, { align: "center" }
+  );
+
+  doc.save(`${config.docType.replace(/_/g, "-")}.pdf`);
+}
+
+// ── Form components ───────────────────────────────────────────────────────────
 
 function FormSection({
   label,
@@ -633,7 +831,7 @@ function InputField({
   type = "text",
 }: {
   label: string;
-  name: keyof NDAFormData;
+  name: string;
   value: string;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   placeholder?: string;
@@ -669,7 +867,7 @@ function TextAreaField({
   required,
 }: {
   label: string;
-  name: keyof NDAFormData;
+  name: string;
   value: string;
   onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   placeholder?: string;
@@ -695,7 +893,52 @@ function TextAreaField({
   );
 }
 
-// ── Send icon ─────────────────────────────────────────────────────────────────
+function DynamicFormPanel({
+  config,
+  data,
+  onInputChange,
+  onTextAreaChange,
+}: {
+  config: DocConfig;
+  data: FormData;
+  onInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onTextAreaChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+}) {
+  return (
+    <div className="p-4 space-y-3">
+      <FormSection label={config.name}>
+        <div className="space-y-3">
+          {config.fields.map((field) =>
+            field.fieldType === "textarea" ? (
+              <TextAreaField
+                key={field.key}
+                label={field.label}
+                name={field.key}
+                value={data[field.key] ?? ""}
+                onChange={onTextAreaChange}
+                placeholder={field.placeholder}
+                required={field.required}
+              />
+            ) : (
+              <InputField
+                key={field.key}
+                label={field.label}
+                name={field.key}
+                value={data[field.key] ?? ""}
+                onChange={onInputChange}
+                placeholder={field.placeholder}
+                required={field.required}
+                type={field.fieldType}
+              />
+            )
+          )}
+        </div>
+      </FormSection>
+    </div>
+  );
+}
+
+// ── Icons ─────────────────────────────────────────────────────────────────────
 
 function SendIcon() {
   return (
@@ -709,8 +952,6 @@ function SendIcon() {
     </svg>
   );
 }
-
-// ── Download icon ─────────────────────────────────────────────────────────────
 
 function DownloadIcon() {
   return (
@@ -733,7 +974,9 @@ function DownloadIcon() {
 
 export default function Home() {
   const [mode, setMode] = useState<"chat" | "form">("chat");
-  const [formData, setFormData] = useState<NDAFormData>(empty);
+  const [documentType, setDocumentType] = useState<string | null>(null);
+  const [docConfig, setDocConfig] = useState<DocConfig | null>(null);
+  const [formData, setFormData] = useState<FormData>({});
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentMessage, setCurrentMessage] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
@@ -749,7 +992,18 @@ export default function Home() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const isComplete = REQUIRED_FIELDS.every((f) => formData[f].trim() !== "");
+  const isComplete =
+    docConfig !== null &&
+    docConfig.requiredFieldKeys.every((k) => (formData[k] ?? "").trim() !== "");
+
+  const handleDownload = async () => {
+    if (!docConfig) return;
+    if (documentType === "mutual_nda") {
+      await generatePDF(formData);
+    } else {
+      await generateGenericPDF(docConfig, formData);
+    }
+  };
 
   // Fetch greeting on mount
   useEffect(() => {
@@ -763,7 +1017,7 @@ export default function Home() {
           {
             role: "assistant",
             content:
-              "Hi! I'm here to help you create a Mutual NDA. What's the legal name of the first party?",
+              "Hi! I'm here to help you draft legal agreements. What kind of document do you need today?",
           },
         ])
       );
@@ -788,14 +1042,17 @@ export default function Home() {
     setCurrentMessage("");
     setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
 
-    // Hoisted so finally can commit partial text even if done event never arrives
     let assistantText = "";
 
     try {
       const response = await fetch("/api/chat/message", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMessage, history: historySnapshot }),
+        body: JSON.stringify({
+          message: userMessage,
+          history: historySnapshot,
+          document_type: documentType,
+        }),
       });
 
       if (!response.ok || !response.body) {
@@ -819,14 +1076,28 @@ export default function Home() {
             const data = JSON.parse(part.slice(6)) as {
               type: string;
               content?: string;
-              fields?: NDAFormData;
+              fields?: FormData;
+              document_type?: string;
+              name?: string;
             };
 
             if (data.type === "text" && data.content) {
               assistantText += data.content;
               setCurrentMessage(assistantText);
+            } else if (data.type === "detection" && data.document_type) {
+              const config = DOCUMENT_CONFIGS[data.document_type];
+              if (config) {
+                setDocumentType(data.document_type);
+                setDocConfig(config);
+                setFormData(emptyFormData(config));
+              }
             } else if (data.type === "fields" && data.fields) {
-              setFormData(data.fields);
+              setFormData((prev) => ({
+                ...prev,
+                ...Object.fromEntries(
+                  Object.entries(data.fields as FormData).filter(([, v]) => v !== "")
+                ),
+              }));
             }
           } catch {
             // Skip malformed SSE events
@@ -842,8 +1113,6 @@ export default function Home() {
         },
       ]);
     } finally {
-      // Always commit any streamed text and reset UI state, even if the
-      // stream closed without emitting the done event (e.g. network drop).
       if (assistantText) {
         setMessages((prev) => [
           ...prev,
@@ -854,7 +1123,10 @@ export default function Home() {
       setIsStreaming(false);
       setTimeout(() => inputRef.current?.focus(), 50);
     }
+
   };
+
+  const isNDA = documentType === "mutual_nda" || documentType === "mutual_nda_coverpage";
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
@@ -865,12 +1137,12 @@ export default function Home() {
             Prelegal
           </span>
           <span className="hidden sm:block text-[11px] text-slate-500">
-            Mutual NDA Creator
+            {docConfig ? docConfig.name : "Legal Document Creator"}
           </span>
         </div>
-        {(isComplete || mode === "form") && (
+        {(isComplete || mode === "form") && docConfig && (
           <button
-            onClick={() => generatePDF(formData)}
+            onClick={handleDownload}
             className="flex items-center gap-1.5 rounded-md bg-gold px-4 py-2 text-sm font-semibold text-white hover:bg-gold-hover transition-colors"
           >
             <DownloadIcon />
@@ -999,160 +1271,178 @@ export default function Home() {
           {/* ── Manual Form panel ─────────────────────────────────────────── */}
           {mode === "form" && (
             <div className="flex-1 overflow-y-auto">
-              <div className="p-4 space-y-3">
-                <FormSection label="Party 1">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="col-span-2">
-                      <InputField
-                        label="Legal Name"
-                        name="party1Name"
-                        value={formData.party1Name}
-                        onChange={handleInput}
-                        placeholder="Acme Corp."
-                        required
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <InputField
-                        label="Address"
-                        name="party1Address"
-                        value={formData.party1Address}
-                        onChange={handleInput}
-                        placeholder="123 Main St, San Francisco, CA 94105"
-                      />
-                    </div>
-                    <InputField
-                      label="Email"
-                      name="party1Email"
-                      value={formData.party1Email}
-                      onChange={handleInput}
-                      placeholder="legal@acme.com"
-                      type="email"
-                    />
-                    <InputField
-                      label="Signatory Name"
-                      name="party1SignatoryName"
-                      value={formData.party1SignatoryName}
-                      onChange={handleInput}
-                      placeholder="Jane Smith"
-                    />
-                    <div className="col-span-2">
-                      <InputField
-                        label="Signatory Title"
-                        name="party1SignatoryTitle"
-                        value={formData.party1SignatoryTitle}
-                        onChange={handleInput}
-                        placeholder="Chief Executive Officer"
-                      />
-                    </div>
-                  </div>
-                </FormSection>
+              {docConfig ? (
+                isNDA ? (
+                  /* Retain the structured NDA form layout */
+                  <div className="p-4 space-y-3">
+                    <FormSection label="Party 1">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="col-span-2">
+                          <InputField
+                            label="Legal Name"
+                            name="party1Name"
+                            value={formData.party1Name ?? ""}
+                            onChange={handleInput}
+                            placeholder="Acme Corp."
+                            required
+                          />
+                        </div>
+                        <div className="col-span-2">
+                          <InputField
+                            label="Address"
+                            name="party1Address"
+                            value={formData.party1Address ?? ""}
+                            onChange={handleInput}
+                            placeholder="123 Main St, San Francisco, CA 94105"
+                          />
+                        </div>
+                        <InputField
+                          label="Email"
+                          name="party1Email"
+                          value={formData.party1Email ?? ""}
+                          onChange={handleInput}
+                          placeholder="legal@acme.com"
+                          type="email"
+                        />
+                        <InputField
+                          label="Signatory Name"
+                          name="party1SignatoryName"
+                          value={formData.party1SignatoryName ?? ""}
+                          onChange={handleInput}
+                          placeholder="Jane Smith"
+                        />
+                        <div className="col-span-2">
+                          <InputField
+                            label="Signatory Title"
+                            name="party1SignatoryTitle"
+                            value={formData.party1SignatoryTitle ?? ""}
+                            onChange={handleInput}
+                            placeholder="Chief Executive Officer"
+                          />
+                        </div>
+                      </div>
+                    </FormSection>
 
-                <FormSection label="Party 2">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="col-span-2">
-                      <InputField
-                        label="Legal Name"
-                        name="party2Name"
-                        value={formData.party2Name}
-                        onChange={handleInput}
-                        placeholder="Globex Inc."
-                        required
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <InputField
-                        label="Address"
-                        name="party2Address"
-                        value={formData.party2Address}
-                        onChange={handleInput}
-                        placeholder="456 Market St, New York, NY 10001"
-                      />
-                    </div>
-                    <InputField
-                      label="Email"
-                      name="party2Email"
-                      value={formData.party2Email}
-                      onChange={handleInput}
-                      placeholder="legal@globex.com"
-                      type="email"
-                    />
-                    <InputField
-                      label="Signatory Name"
-                      name="party2SignatoryName"
-                      value={formData.party2SignatoryName}
-                      onChange={handleInput}
-                      placeholder="John Doe"
-                    />
-                    <div className="col-span-2">
-                      <InputField
-                        label="Signatory Title"
-                        name="party2SignatoryTitle"
-                        value={formData.party2SignatoryTitle}
-                        onChange={handleInput}
-                        placeholder="Chief Executive Officer"
-                      />
-                    </div>
-                  </div>
-                </FormSection>
+                    <FormSection label="Party 2">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="col-span-2">
+                          <InputField
+                            label="Legal Name"
+                            name="party2Name"
+                            value={formData.party2Name ?? ""}
+                            onChange={handleInput}
+                            placeholder="Globex Inc."
+                            required
+                          />
+                        </div>
+                        <div className="col-span-2">
+                          <InputField
+                            label="Address"
+                            name="party2Address"
+                            value={formData.party2Address ?? ""}
+                            onChange={handleInput}
+                            placeholder="456 Market St, New York, NY 10001"
+                          />
+                        </div>
+                        <InputField
+                          label="Email"
+                          name="party2Email"
+                          value={formData.party2Email ?? ""}
+                          onChange={handleInput}
+                          placeholder="legal@globex.com"
+                          type="email"
+                        />
+                        <InputField
+                          label="Signatory Name"
+                          name="party2SignatoryName"
+                          value={formData.party2SignatoryName ?? ""}
+                          onChange={handleInput}
+                          placeholder="John Doe"
+                        />
+                        <div className="col-span-2">
+                          <InputField
+                            label="Signatory Title"
+                            name="party2SignatoryTitle"
+                            value={formData.party2SignatoryTitle ?? ""}
+                            onChange={handleInput}
+                            placeholder="Chief Executive Officer"
+                          />
+                        </div>
+                      </div>
+                    </FormSection>
 
-                <FormSection label="Agreement Terms">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="col-span-2">
-                      <TextAreaField
-                        label="Purpose"
-                        name="purpose"
-                        value={formData.purpose}
-                        onChange={handleInput}
-                        placeholder="evaluating a potential business relationship between the parties"
-                        required
-                      />
-                    </div>
-                    <InputField
-                      label="Effective Date"
-                      name="effectiveDate"
-                      value={formData.effectiveDate}
-                      onChange={handleInput}
-                      type="date"
-                      required
-                    />
-                    <InputField
-                      label="MNDA Term"
-                      name="mndaTerm"
-                      value={formData.mndaTerm}
-                      onChange={handleInput}
-                      placeholder="2 years from Effective Date"
-                      required
-                    />
-                    <div className="col-span-2">
-                      <InputField
-                        label="Term of Confidentiality"
-                        name="termOfConfidentiality"
-                        value={formData.termOfConfidentiality}
-                        onChange={handleInput}
-                        placeholder="3 years following expiration or termination"
-                        required
-                      />
-                    </div>
-                    <InputField
-                      label="Governing Law (State)"
-                      name="governingLaw"
-                      value={formData.governingLaw}
-                      onChange={handleInput}
-                      placeholder="Delaware"
-                      required
-                    />
-                    <InputField
-                      label="Jurisdiction"
-                      name="jurisdiction"
-                      value={formData.jurisdiction}
-                      onChange={handleInput}
-                      placeholder="Wilmington, Delaware"
-                      required
-                    />
+                    <FormSection label="Agreement Terms">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="col-span-2">
+                          <TextAreaField
+                            label="Purpose"
+                            name="purpose"
+                            value={formData.purpose ?? ""}
+                            onChange={handleInput}
+                            placeholder="evaluating a potential business relationship between the parties"
+                            required
+                          />
+                        </div>
+                        <InputField
+                          label="Effective Date"
+                          name="effectiveDate"
+                          value={formData.effectiveDate ?? ""}
+                          onChange={handleInput}
+                          type="date"
+                          required
+                        />
+                        <InputField
+                          label="MNDA Term"
+                          name="mndaTerm"
+                          value={formData.mndaTerm ?? ""}
+                          onChange={handleInput}
+                          placeholder="2 years from Effective Date"
+                          required
+                        />
+                        <div className="col-span-2">
+                          <InputField
+                            label="Term of Confidentiality"
+                            name="termOfConfidentiality"
+                            value={formData.termOfConfidentiality ?? ""}
+                            onChange={handleInput}
+                            placeholder="3 years following expiration or termination"
+                            required
+                          />
+                        </div>
+                        <InputField
+                          label="Governing Law (State)"
+                          name="governingLaw"
+                          value={formData.governingLaw ?? ""}
+                          onChange={handleInput}
+                          placeholder="Delaware"
+                          required
+                        />
+                        <InputField
+                          label="Jurisdiction"
+                          name="jurisdiction"
+                          value={formData.jurisdiction ?? ""}
+                          onChange={handleInput}
+                          placeholder="Wilmington, Delaware"
+                          required
+                        />
+                      </div>
+                    </FormSection>
                   </div>
-                </FormSection>
-              </div>
+                ) : (
+                  <DynamicFormPanel
+                    config={docConfig}
+                    data={formData}
+                    onInputChange={handleInput}
+                    onTextAreaChange={handleInput}
+                  />
+                )
+              ) : (
+                <div className="flex items-center justify-center h-full p-8 text-center">
+                  <p className="text-slate-400 text-[13px] font-sans">
+                    Use the AI Chat tab to tell me what document you need, then switch here to fill in fields manually.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -1165,15 +1455,30 @@ export default function Home() {
               className="max-w-[660px] mx-auto bg-white shadow-paper px-12 py-11"
               style={{ borderRadius: "2px" }}
             >
-              <div className="text-center mb-6">
-                <h1 className="font-serif text-[21px] font-bold text-ink leading-tight mb-2">
-                  Mutual Non-Disclosure Agreement
-                </h1>
-                <p className="text-[9px] font-sans font-bold uppercase tracking-[0.22em] text-slate-400">
-                  Common Paper MNDA v1.0
-                </p>
-              </div>
-              <NDAPreview data={formData} />
+              {docConfig ? (
+                <>
+                  <div className="text-center mb-6">
+                    <h1 className="font-serif text-[21px] font-bold text-ink leading-tight mb-2">
+                      {docConfig.name}
+                    </h1>
+                    <p className="text-[9px] font-sans font-bold uppercase tracking-[0.22em] text-slate-400">
+                      Common Paper Standard Agreement
+                    </p>
+                  </div>
+                  {isNDA ? (
+                    <NDAPreview data={formData} />
+                  ) : (
+                    <GenericPreview config={docConfig} data={formData} />
+                  )}
+                </>
+              ) : (
+                <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
+                  <p className="font-serif text-[18px] text-slate-300 mb-3">Prelegal</p>
+                  <p className="text-[13px] text-slate-400 font-sans max-w-xs leading-relaxed">
+                    Tell the AI what legal document you need to get started. Your document preview will appear here.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>

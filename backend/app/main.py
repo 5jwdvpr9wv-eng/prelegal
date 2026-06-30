@@ -1,6 +1,6 @@
 import os
 from contextlib import asynccontextmanager
-from typing import List
+from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from .auth import create_token, decode_token, hash_password, verify_password
 from .chat import ChatMessage, get_greeting, stream_chat
 from .database import get_db, init_db
+from .documents import REGISTRY
 
 
 @asynccontextmanager
@@ -30,6 +31,7 @@ class AuthRequest(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     history: List[ChatMessage] = []
+    document_type: Optional[str] = None
 
 
 @app.get("/api/health")
@@ -37,15 +39,28 @@ async def health():
     return {"status": "ok"}
 
 
+@app.get("/api/catalog")
+async def get_catalog():
+    return [
+        {
+            "doc_type": key,
+            "name": config.name,
+            "template_file": config.template_file,
+            "required_field_count": len(config.required_field_keys),
+        }
+        for key, config in REGISTRY.items()
+    ]
+
+
 @app.get("/api/chat/greeting")
-async def chat_greeting():
-    return {"message": get_greeting()}
+async def chat_greeting(document_type: Optional[str] = None):
+    return {"message": get_greeting(document_type)}
 
 
 @app.post("/api/chat/message")
 async def chat_message(req: ChatRequest):
     return StreamingResponse(
-        stream_chat(req.message, req.history),
+        stream_chat(req.message, req.history, req.document_type),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
