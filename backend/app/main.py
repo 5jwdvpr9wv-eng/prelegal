@@ -1,12 +1,15 @@
 import os
 from contextlib import asynccontextmanager
+from typing import List
 
 from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from jose import JWTError
 from pydantic import BaseModel
 
 from .auth import create_token, decode_token, hash_password, verify_password
+from .chat import ChatMessage, get_greeting, stream_chat
 from .database import get_db, init_db
 
 
@@ -24,9 +27,28 @@ class AuthRequest(BaseModel):
     password: str
 
 
+class ChatRequest(BaseModel):
+    message: str
+    history: List[ChatMessage] = []
+
+
 @app.get("/api/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.get("/api/chat/greeting")
+async def chat_greeting():
+    return {"message": get_greeting()}
+
+
+@app.post("/api/chat/message")
+async def chat_message(req: ChatRequest):
+    return StreamingResponse(
+        stream_chat(req.message, req.history),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.post("/api/auth/signup")
