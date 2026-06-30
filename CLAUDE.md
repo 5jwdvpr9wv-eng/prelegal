@@ -71,11 +71,12 @@ These are the actual Tailwind tokens in `frontend/tailwind.config.ts`:
 - `.env.example` documents required environment variables
 
 ### Completed (PL-5) — AI Chat Interface
-- AI chat replaces the manual form in the left panel; NDA preview and PDF generation unchanged
-- LiteLLM via OpenRouter with Cerebras inference (`gpt-oss-120b`); structured-output field extraction
-- Streaming SSE: text tokens stream as the AI types; field extraction fires after each response
-- Live NDA preview updates as fields are extracted from the conversation
-- Download PDF button appears once all 8 required fields are populated
+- Left panel has a **Chat / Form** tab toggle — both modes share `formData` so the NDA preview stays in sync
+- **AI Chat tab**: freeform conversation; AI asks questions and extracts field values via structured output
+- **Manual Form tab**: original field-by-field form preserved for users who prefer direct input
+- LiteLLM via OpenRouter with Cerebras inference (`gpt-oss-120b`); streaming SSE response + structured-output field extraction after each reply
+- Live NDA preview (right panel) and PDF generation unchanged from PL-4
+- Download PDF button: always visible in Form mode; appears in Chat mode once all 8 required fields are populated
 - Backend: `backend/app/chat.py` (chat logic), 8 integration tests in `backend/tests/`
 - Resilience: extraction wrapped in `try/finally` (backend) and `sendMessage` uses `try/catch/finally` (frontend) so the UI never gets permanently locked on API failures
 
