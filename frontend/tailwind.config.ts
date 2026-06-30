@@ -10,7 +10,8 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        navy: "#0f1f38",
+        navy:   "#0f1f38",
+        purple: "#753991",
         gold: {
           DEFAULT: "#b8963e",
           hover:   "#a07d2e",

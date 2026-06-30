@@ -1,6 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useAuth } from "./auth-context";
+import { AuthModal } from "./components/AuthModal";
+import { MyDocumentsModal } from "./components/MyDocumentsModal";
+import { SaveDocumentModal } from "./components/SaveDocumentModal";
 
 // ── Generic types ─────────────────────────────────────────────────────────────
 
@@ -42,7 +46,7 @@ const _NDA_FIELDS: FieldDef[] = [
   { key: "effectiveDate", label: "Effective Date", required: true, fieldType: "date", placeholder: "" },
   { key: "mndaTerm", label: "MNDA Term", required: true, fieldType: "text", placeholder: "2 years from Effective Date" },
   { key: "termOfConfidentiality", label: "Term of Confidentiality", required: true, fieldType: "text", placeholder: "3 years following expiration or termination" },
-  { key: "governingLaw", label: "Governing Law (State)", required: true, fieldType: "text", placeholder: "Delaware" },
+  { key: "governingLaw", label: "Governing Law", required: true, fieldType: "text", placeholder: "Delaware" },
   { key: "jurisdiction", label: "Jurisdiction", required: true, fieldType: "text", placeholder: "Wilmington, Delaware" },
 ];
 
@@ -240,6 +244,15 @@ interface Message {
   content: string;
 }
 
+interface SavedDocWithFields {
+  id: number;
+  name: string;
+  document_type: string;
+  form_data: FormData;
+  created_at: string;
+  updated_at: string;
+}
+
 // ── Preview subcomponents ─────────────────────────────────────────────────────
 
 function Val({ children }: { children: string }) {
@@ -324,7 +337,7 @@ function NDAPreview({ data }: { data: FormData }) {
           <Val>{data.termOfConfidentiality ?? ""}</Val>
         </CoverRow>
         <CoverRow label="Governing Law">
-          State of <Val>{data.governingLaw ?? ""}</Val>
+          <Val>{data.governingLaw ?? ""}</Val>
         </CoverRow>
         <CoverRow label="Jurisdiction">
           <Val>{data.jurisdiction ?? ""}</Val>
@@ -438,13 +451,12 @@ function NDAPreview({ data }: { data: FormData }) {
       <p>
         <strong>9. Governing Law and Jurisdiction.</strong> This MNDA and all
         matters relating hereto are governed by, and construed in accordance
-        with, the laws of the State of <Val>{data.governingLaw ?? ""}</Val>, without
-        regard to the conflict of laws provisions of such State of{" "}
-        <Val>{data.governingLaw ?? ""}</Val>. Any legal suit, action, or proceeding
-        relating to this MNDA must be instituted in the federal or state courts
-        located in <Val>{data.jurisdiction ?? ""}</Val>. Each party irrevocably
-        submits to the exclusive jurisdiction of such{" "}
-        <Val>{data.jurisdiction ?? ""}</Val> in any such suit, action, or proceeding.
+        with, the laws of <Val>{data.governingLaw ?? ""}</Val>, without
+        regard to the conflict of laws provisions of such laws. Any legal suit,
+        action, or proceeding relating to this MNDA must be instituted in the
+        courts located in <Val>{data.jurisdiction ?? ""}</Val>. Each party irrevocably
+        submits to the exclusive jurisdiction of such courts in any such suit,
+        action, or proceeding.
       </p>
 
       <p>
@@ -647,7 +659,7 @@ async function generatePDF(data: FormData): Promise<void> {
   coverRow("Purpose", purpose);
   coverRow("MNDA Term", mndaTerm);
   coverRow("Term of Confidentiality", termOfConf);
-  coverRow("Governing Law", `State of ${govLaw}`);
+  coverRow("Governing Law", govLaw);
   coverRow("Jurisdiction", jurisdiction);
 
   doc.addPage();
@@ -688,7 +700,7 @@ async function generatePDF(data: FormData): Promise<void> {
   clause("6", "Return or Destruction of Confidential Information", `Upon expiration or termination of this MNDA or upon the Disclosing Party's earlier request, the Receiving Party will: (a) cease using Confidential Information; (b) promptly after the Disclosing Party's written request, destroy all Confidential Information in the Receiving Party's possession or control or return it to the Disclosing Party; and (c) if requested by the Disclosing Party, confirm its compliance with these obligations in writing. As an exception to subsection (b), the Receiving Party may retain Confidential Information in accordance with its standard backup or record retention policies or as required by law, but the terms of this MNDA will continue to apply to the retained Confidential Information.`);
   clause("7", "Proprietary Rights", `The Disclosing Party retains all of its intellectual property and other rights in its Confidential Information and its disclosure to the Receiving Party grants no license under such rights.`);
   clause("8", "Disclaimer", `ALL CONFIDENTIAL INFORMATION IS PROVIDED "AS IS", WITH ALL FAULTS, AND WITHOUT WARRANTIES, INCLUDING THE IMPLIED WARRANTIES OF TITLE, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.`);
-  clause("9", "Governing Law and Jurisdiction", `This MNDA and all matters relating hereto are governed by, and construed in accordance with, the laws of the State of ${govLaw}, without regard to the conflict of laws provisions of such ${govLaw}. Any legal suit, action, or proceeding relating to this MNDA must be instituted in the federal or state courts located in ${jurisdiction}. Each party irrevocably submits to the exclusive jurisdiction of such ${jurisdiction} in any such suit, action, or proceeding.`);
+  clause("9", "Governing Law and Jurisdiction", `This MNDA and all matters relating hereto are governed by, and construed in accordance with, the laws of ${govLaw}, without regard to the conflict of laws provisions of such laws. Any legal suit, action, or proceeding relating to this MNDA must be instituted in the courts located in ${jurisdiction}. Each party irrevocably submits to the exclusive jurisdiction of such courts in any such suit, action, or proceeding.`);
   clause("10", "Equitable Relief", `A breach of this MNDA may cause irreparable harm for which monetary damages are an insufficient remedy. Upon a breach of this MNDA, the Disclosing Party is entitled to seek appropriate equitable relief, including an injunction, in addition to its other remedies.`);
   clause("11", "General", `Neither party has an obligation under this MNDA to disclose Confidential Information to the other or proceed with any proposed transaction. Neither party may assign this MNDA without the prior written consent of the other party, except that either party may assign this MNDA in connection with a merger, reorganization, acquisition or other transfer of all or substantially all its assets or voting securities. Any assignment in violation of this Section is null and void. This MNDA will bind and inure to the benefit of each party's permitted successors and assigns. Waivers must be signed by the waiving party's authorized representative and cannot be implied from conduct. If any provision of this MNDA is held unenforceable, it will be limited to the minimum extent necessary so the rest of this MNDA remains in effect. This MNDA (including the Cover Page) constitutes the entire agreement of the parties with respect to its subject matter, and supersedes all prior and contemporaneous understandings, agreements, representations, and warranties, whether written or oral, regarding such subject matter. This MNDA may only be amended, modified, waived, or supplemented by an agreement in writing signed by both parties. Notices, requests and approvals under this MNDA must be sent in writing to the email or postal addresses on the Cover Page and are deemed delivered on receipt. This MNDA may be executed in counterparts, including electronic copies, each of which is deemed an original and which together form the same agreement.`);
 
@@ -973,6 +985,9 @@ function DownloadIcon() {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function Home() {
+  const { user, loading, signOut } = useAuth();
+
+  // Document workflow state
   const [mode, setMode] = useState<"chat" | "form">("chat");
   const [documentType, setDocumentType] = useState<string | null>(null);
   const [docConfig, setDocConfig] = useState<DocConfig | null>(null);
@@ -981,6 +996,15 @@ export default function Home() {
   const [currentMessage, setCurrentMessage] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [input, setInput] = useState("");
+
+  // Persistence state
+  const [currentDocId, setCurrentDocId] = useState<number | null>(null);
+  const [saveDocName, setSaveDocName] = useState("");
+
+  // Modal state
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showMyDocs, setShowMyDocs] = useState(false);
+  const [showSavePrompt, setShowSavePrompt] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -1005,8 +1029,7 @@ export default function Home() {
     }
   };
 
-  // Fetch greeting on mount
-  useEffect(() => {
+  const fetchGreeting = useCallback(() => {
     fetch("/api/chat/greeting")
       .then((r) => r.json())
       .then((data: { message: string }) =>
@@ -1022,6 +1045,11 @@ export default function Home() {
         ])
       );
   }, []);
+
+  // Fetch greeting on mount
+  useEffect(() => {
+    fetchGreeting();
+  }, [fetchGreeting]);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -1128,6 +1156,73 @@ export default function Home() {
 
   const isNDA = documentType === "mutual_nda" || documentType === "mutual_nda_coverpage";
 
+  const handleNewDocument = useCallback(() => {
+    setDocumentType(null);
+    setDocConfig(null);
+    setFormData({});
+    setMessages([]);
+    setCurrentDocId(null);
+    setSaveDocName("");
+    setMode("chat");
+    fetchGreeting();
+  }, [fetchGreeting]);
+
+  const handleSignout = useCallback(async () => {
+    await signOut();
+    setCurrentDocId(null);
+    setSaveDocName("");
+  }, [signOut]);
+
+  const handleSave = useCallback(async () => {
+    if (!docConfig || !user || !documentType) return;
+    if (currentDocId !== null) {
+      const r = await fetch(`/api/documents/${currentDocId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: saveDocName, form_data: formData }),
+      }).catch(() => null);
+      if (!r?.ok) {
+        // Session likely expired — prompt re-auth
+        setShowAuthModal(true);
+      }
+    } else {
+      setSaveDocName(docConfig.name);
+      setShowSavePrompt(true);
+    }
+  }, [docConfig, user, documentType, currentDocId, saveDocName, formData]);
+
+  const handleSaveConfirm = useCallback(
+    async (name: string) => {
+      if (!docConfig || !documentType) return;
+      const r = await fetch("/api/documents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, document_type: documentType, form_data: formData }),
+      });
+      if (!r.ok) throw new Error("Save failed");
+      const data = await r.json();
+      setCurrentDocId(data.id);
+      setSaveDocName(name);
+      setShowSavePrompt(false);
+    },
+    [docConfig, documentType, formData]
+  );
+
+  const handleLoadDoc = useCallback(
+    (doc: SavedDocWithFields) => {
+      const config = DOCUMENT_CONFIGS[doc.document_type] ?? null;
+      setDocumentType(doc.document_type);
+      setDocConfig(config);
+      setFormData(doc.form_data);
+      setCurrentDocId(doc.id);
+      setSaveDocName(doc.name);
+      setMessages([]);
+      setMode("form");
+      setShowMyDocs(false);
+    },
+    []
+  );
+
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       {/* ── Header ─────────────────────────────────────────────────────────── */}
@@ -1140,15 +1235,72 @@ export default function Home() {
             {docConfig ? docConfig.name : "Legal Document Creator"}
           </span>
         </div>
-        {(isComplete || mode === "form") && docConfig && (
-          <button
-            onClick={handleDownload}
-            className="flex items-center gap-1.5 rounded-md bg-gold px-4 py-2 text-sm font-semibold text-white hover:bg-gold-hover transition-colors"
-          >
-            <DownloadIcon />
-            Download PDF
-          </button>
-        )}
+
+        <div className="flex items-center gap-2">
+          {/* New Document */}
+          {docConfig && (
+            <button
+              onClick={handleNewDocument}
+              className="text-[11px] text-slate-400 hover:text-white border border-slate-600/50 rounded px-2.5 py-1.5 transition-colors"
+            >
+              New
+            </button>
+          )}
+
+          {/* Save */}
+          {docConfig && user && (
+            <button
+              onClick={handleSave}
+              className="text-[11px] font-semibold text-gold border border-gold/50 rounded px-2.5 py-1.5 hover:bg-gold/10 transition-colors"
+            >
+              {currentDocId ? "Update" : "Save"}
+            </button>
+          )}
+
+          {/* My Documents */}
+          {user && (
+            <button
+              onClick={() => setShowMyDocs(true)}
+              className="text-[11px] text-slate-400 hover:text-white transition-colors px-1.5"
+            >
+              My Documents
+            </button>
+          )}
+
+          {/* Download PDF */}
+          {(isComplete || mode === "form") && docConfig && (
+            <button
+              onClick={handleDownload}
+              className="flex items-center gap-1.5 rounded-md bg-gold px-4 py-2 text-sm font-semibold text-white hover:bg-gold-hover transition-colors"
+            >
+              <DownloadIcon />
+              Download PDF
+            </button>
+          )}
+
+          {/* Auth controls */}
+          {!loading && !user && (
+            <button
+              onClick={() => setShowAuthModal(true)}
+              className="text-[11px] font-semibold text-white border border-white/20 rounded px-2.5 py-1.5 hover:bg-white/10 transition-colors"
+            >
+              Sign In
+            </button>
+          )}
+          {!loading && user && (
+            <div className="flex items-center gap-2 ml-1">
+              <span className="hidden sm:block text-[11px] text-slate-400 max-w-[140px] truncate">
+                {user.email}
+              </span>
+              <button
+                onClick={handleSignout}
+                className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
+              >
+                Sign out
+              </button>
+            </div>
+          )}
+        </div>
       </header>
 
       {/* ── Split-screen body ───────────────────────────────────────────────── */}
@@ -1410,7 +1562,7 @@ export default function Home() {
                           />
                         </div>
                         <InputField
-                          label="Governing Law (State)"
+                          label="Governing Law"
                           name="governingLaw"
                           value={formData.governingLaw ?? ""}
                           onChange={handleInput}
@@ -1465,6 +1617,11 @@ export default function Home() {
                       Common Paper Standard Agreement
                     </p>
                   </div>
+
+                  <div className="mb-6 rounded border border-gold-rule bg-gold-light px-4 py-2.5 text-[10px] font-sans text-center text-slate-500 leading-relaxed">
+                    <span className="font-semibold text-slate-600">Draft only</span> — This document is AI-generated for review purposes and does not constitute legal advice. Consult a qualified attorney before signing.
+                  </div>
+
                   {isNDA ? (
                     <NDAPreview data={formData} />
                   ) : (
@@ -1483,6 +1640,24 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {/* ── Modals ──────────────────────────────────────────────────────────── */}
+      {showAuthModal && (
+        <AuthModal onClose={() => setShowAuthModal(false)} />
+      )}
+      {showSavePrompt && (
+        <SaveDocumentModal
+          defaultName={saveDocName}
+          onClose={() => setShowSavePrompt(false)}
+          onSave={handleSaveConfirm}
+        />
+      )}
+      {showMyDocs && (
+        <MyDocumentsModal
+          onClose={() => setShowMyDocs(false)}
+          onLoad={handleLoadDoc}
+        />
+      )}
     </div>
   );
 }
