@@ -9,4 +9,15 @@ dependencies = [
     "bcrypt>=4.0.0",
     "python-multipart>=0.0.12",
     "pydantic>=2.9.0",
+    "litellm>=1.90.1",
 ]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "strict"
