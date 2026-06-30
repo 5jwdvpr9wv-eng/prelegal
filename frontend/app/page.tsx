@@ -599,6 +599,102 @@ async function generatePDF(data: NDAFormData): Promise<void> {
   doc.save("mutual-nda.pdf");
 }
 
+// ── Form components ──────────────────────────────────────────────────────────
+
+function FormSection({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="bg-white rounded-lg border border-rule shadow-sm overflow-hidden">
+      <div className="px-4 pt-3.5 pb-0.5 border-b border-rule/60">
+        <div className="flex items-center gap-3 pb-3">
+          <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">
+            {label}
+          </span>
+          <div className="flex-1 h-px bg-rule" />
+        </div>
+      </div>
+      <div className="p-4 space-y-3">{children}</div>
+    </section>
+  );
+}
+
+function InputField({
+  label,
+  name,
+  value,
+  onChange,
+  placeholder,
+  required,
+  type = "text",
+}: {
+  label: string;
+  name: keyof NDAFormData;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  placeholder?: string;
+  required?: boolean;
+  type?: string;
+}) {
+  return (
+    <div>
+      <label htmlFor={name} className="form-label">
+        {label}
+        {required && <span className="text-gold ml-0.5">*</span>}
+      </label>
+      <input
+        id={name}
+        name={name}
+        type={type}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        required={required}
+        className="form-input"
+      />
+    </div>
+  );
+}
+
+function TextAreaField({
+  label,
+  name,
+  value,
+  onChange,
+  placeholder,
+  required,
+}: {
+  label: string;
+  name: keyof NDAFormData;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  placeholder?: string;
+  required?: boolean;
+}) {
+  return (
+    <div>
+      <label htmlFor={name} className="form-label">
+        {label}
+        {required && <span className="text-gold ml-0.5">*</span>}
+      </label>
+      <textarea
+        id={name}
+        name={name}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        required={required}
+        rows={3}
+        className="form-input resize-none"
+      />
+    </div>
+  );
+}
+
 // ── Send icon ─────────────────────────────────────────────────────────────────
 
 function SendIcon() {
@@ -636,6 +732,7 @@ function DownloadIcon() {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function Home() {
+  const [mode, setMode] = useState<"chat" | "form">("chat");
   const [formData, setFormData] = useState<NDAFormData>(empty);
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentMessage, setCurrentMessage] = useState("");
@@ -644,6 +741,13 @@ export default function Home() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const handleInput = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
 
   const isComplete = REQUIRED_FIELDS.every((f) => formData[f].trim() !== "");
 
@@ -764,7 +868,7 @@ export default function Home() {
             Mutual NDA Creator
           </span>
         </div>
-        {isComplete && (
+        {(isComplete || mode === "form") && (
           <button
             onClick={() => generatePDF(formData)}
             className="flex items-center gap-1.5 rounded-md bg-gold px-4 py-2 text-sm font-semibold text-white hover:bg-gold-hover transition-colors"
@@ -777,90 +881,281 @@ export default function Home() {
 
       {/* ── Split-screen body ───────────────────────────────────────────────── */}
       <div className="flex-1 min-h-0 flex">
-        {/* Left panel: AI chat */}
+        {/* Left panel: Chat or Form */}
         <div className="w-[400px] flex-none flex flex-col bg-surface border-r border-rule">
-          {/* Messages area */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {messages.map((msg, i) => (
-              <div
-                key={i}
-                className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-              >
-                <div
-                  className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-[13px] leading-relaxed whitespace-pre-wrap ${
-                    msg.role === "user"
-                      ? "bg-navy text-white rounded-tr-sm"
-                      : "bg-white border border-rule text-ink shadow-sm rounded-tl-sm"
-                  }`}
-                >
-                  {msg.content}
-                </div>
-              </div>
-            ))}
 
-            {/* Typing indicator while waiting for first token */}
-            {isStreaming && !currentMessage && (
-              <div className="flex justify-start">
-                <div className="rounded-xl rounded-tl-sm px-3.5 py-3 bg-white border border-rule shadow-sm">
-                  <div className="flex gap-1 items-center h-4">
-                    <span className="w-1.5 h-1.5 rounded-full bg-slate-300 animate-bounce [animation-delay:0ms]" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-slate-300 animate-bounce [animation-delay:150ms]" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-slate-300 animate-bounce [animation-delay:300ms]" />
+          {/* Mode tabs */}
+          <div className="flex-none flex bg-white border-b border-rule">
+            <button
+              onClick={() => setMode("chat")}
+              className={`flex-1 py-2.5 text-[12px] font-semibold tracking-wide transition-colors ${
+                mode === "chat"
+                  ? "text-navy border-b-2 border-navy"
+                  : "text-slate-400 hover:text-ink"
+              }`}
+            >
+              AI Chat
+            </button>
+            <button
+              onClick={() => setMode("form")}
+              className={`flex-1 py-2.5 text-[12px] font-semibold tracking-wide transition-colors ${
+                mode === "form"
+                  ? "text-navy border-b-2 border-navy"
+                  : "text-slate-400 hover:text-ink"
+              }`}
+            >
+              Manual Form
+            </button>
+          </div>
+
+          {/* ── AI Chat panel ─────────────────────────────────────────────── */}
+          {mode === "chat" && (
+            <>
+              {/* Messages area */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                {messages.map((msg, i) => (
+                  <div
+                    key={i}
+                    className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                  >
+                    <div
+                      className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-[13px] leading-relaxed whitespace-pre-wrap ${
+                        msg.role === "user"
+                          ? "bg-navy text-white rounded-tr-sm"
+                          : "bg-white border border-rule text-ink shadow-sm rounded-tl-sm"
+                      }`}
+                    >
+                      {msg.content}
+                    </div>
                   </div>
-                </div>
+                ))}
+
+                {/* Typing indicator while waiting for first token */}
+                {isStreaming && !currentMessage && (
+                  <div className="flex justify-start">
+                    <div className="rounded-xl rounded-tl-sm px-3.5 py-3 bg-white border border-rule shadow-sm">
+                      <div className="flex gap-1 items-center h-4">
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-300 animate-bounce [animation-delay:0ms]" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-300 animate-bounce [animation-delay:150ms]" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-300 animate-bounce [animation-delay:300ms]" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Streaming message in progress */}
+                {currentMessage && (
+                  <div className="flex justify-start">
+                    <div className="max-w-[85%] rounded-xl rounded-tl-sm px-3.5 py-2.5 text-[13px] leading-relaxed bg-white border border-rule text-ink shadow-sm whitespace-pre-wrap">
+                      {currentMessage}
+                      <span className="inline-block w-[2px] h-[14px] ml-0.5 bg-gold animate-pulse align-text-bottom" />
+                    </div>
+                  </div>
+                )}
+
+                <div ref={messagesEndRef} />
               </div>
-            )}
 
-            {/* Streaming message in progress */}
-            {currentMessage && (
-              <div className="flex justify-start">
-                <div className="max-w-[85%] rounded-xl rounded-tl-sm px-3.5 py-2.5 text-[13px] leading-relaxed bg-white border border-rule text-ink shadow-sm whitespace-pre-wrap">
-                  {currentMessage}
-                  <span className="inline-block w-[2px] h-[14px] ml-0.5 bg-gold animate-pulse align-text-bottom" />
+              {/* Chat input */}
+              <div className="flex-none border-t border-rule bg-white p-3">
+                <div className="flex gap-2 items-end">
+                  <textarea
+                    ref={inputRef}
+                    value={input}
+                    onChange={(e) => {
+                      setInput(e.target.value);
+                      e.target.style.height = "auto";
+                      e.target.style.height =
+                        Math.min(e.target.scrollHeight, 120) + "px";
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        sendMessage();
+                      }
+                    }}
+                    placeholder="Type your message…"
+                    disabled={isStreaming}
+                    className="flex-1 form-input resize-none text-[13px] leading-relaxed overflow-y-auto disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{ minHeight: "38px", maxHeight: "120px" }}
+                    rows={1}
+                  />
+                  <button
+                    onClick={sendMessage}
+                    disabled={isStreaming || !input.trim()}
+                    aria-label="Send"
+                    className="flex-none w-9 h-9 flex items-center justify-center rounded-md bg-navy text-white disabled:opacity-40 hover:bg-navy/90 transition-colors"
+                  >
+                    <SendIcon />
+                  </button>
                 </div>
+                <p className="text-[10px] text-slate-400 mt-1.5 ml-0.5">
+                  Enter to send · Shift+Enter for new line
+                </p>
               </div>
-            )}
+            </>
+          )}
 
-            <div ref={messagesEndRef} />
-          </div>
+          {/* ── Manual Form panel ─────────────────────────────────────────── */}
+          {mode === "form" && (
+            <div className="flex-1 overflow-y-auto">
+              <div className="p-4 space-y-3">
+                <FormSection label="Party 1">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="col-span-2">
+                      <InputField
+                        label="Legal Name"
+                        name="party1Name"
+                        value={formData.party1Name}
+                        onChange={handleInput}
+                        placeholder="Acme Corp."
+                        required
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <InputField
+                        label="Address"
+                        name="party1Address"
+                        value={formData.party1Address}
+                        onChange={handleInput}
+                        placeholder="123 Main St, San Francisco, CA 94105"
+                      />
+                    </div>
+                    <InputField
+                      label="Email"
+                      name="party1Email"
+                      value={formData.party1Email}
+                      onChange={handleInput}
+                      placeholder="legal@acme.com"
+                      type="email"
+                    />
+                    <InputField
+                      label="Signatory Name"
+                      name="party1SignatoryName"
+                      value={formData.party1SignatoryName}
+                      onChange={handleInput}
+                      placeholder="Jane Smith"
+                    />
+                    <div className="col-span-2">
+                      <InputField
+                        label="Signatory Title"
+                        name="party1SignatoryTitle"
+                        value={formData.party1SignatoryTitle}
+                        onChange={handleInput}
+                        placeholder="Chief Executive Officer"
+                      />
+                    </div>
+                  </div>
+                </FormSection>
 
-          {/* Input area */}
-          <div className="flex-none border-t border-rule bg-white p-3">
-            <div className="flex gap-2 items-end">
-              <textarea
-                ref={inputRef}
-                value={input}
-                onChange={(e) => {
-                  setInput(e.target.value);
-                  e.target.style.height = "auto";
-                  e.target.style.height =
-                    Math.min(e.target.scrollHeight, 120) + "px";
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                  }
-                }}
-                placeholder="Type your message…"
-                disabled={isStreaming}
-                className="flex-1 form-input resize-none text-[13px] leading-relaxed overflow-y-auto disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ minHeight: "38px", maxHeight: "120px" }}
-                rows={1}
-              />
-              <button
-                onClick={sendMessage}
-                disabled={isStreaming || !input.trim()}
-                aria-label="Send"
-                className="flex-none w-9 h-9 flex items-center justify-center rounded-md bg-navy text-white disabled:opacity-40 hover:bg-navy/90 transition-colors"
-              >
-                <SendIcon />
-              </button>
+                <FormSection label="Party 2">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="col-span-2">
+                      <InputField
+                        label="Legal Name"
+                        name="party2Name"
+                        value={formData.party2Name}
+                        onChange={handleInput}
+                        placeholder="Globex Inc."
+                        required
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <InputField
+                        label="Address"
+                        name="party2Address"
+                        value={formData.party2Address}
+                        onChange={handleInput}
+                        placeholder="456 Market St, New York, NY 10001"
+                      />
+                    </div>
+                    <InputField
+                      label="Email"
+                      name="party2Email"
+                      value={formData.party2Email}
+                      onChange={handleInput}
+                      placeholder="legal@globex.com"
+                      type="email"
+                    />
+                    <InputField
+                      label="Signatory Name"
+                      name="party2SignatoryName"
+                      value={formData.party2SignatoryName}
+                      onChange={handleInput}
+                      placeholder="John Doe"
+                    />
+                    <div className="col-span-2">
+                      <InputField
+                        label="Signatory Title"
+                        name="party2SignatoryTitle"
+                        value={formData.party2SignatoryTitle}
+                        onChange={handleInput}
+                        placeholder="Chief Executive Officer"
+                      />
+                    </div>
+                  </div>
+                </FormSection>
+
+                <FormSection label="Agreement Terms">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="col-span-2">
+                      <TextAreaField
+                        label="Purpose"
+                        name="purpose"
+                        value={formData.purpose}
+                        onChange={handleInput}
+                        placeholder="evaluating a potential business relationship between the parties"
+                        required
+                      />
+                    </div>
+                    <InputField
+                      label="Effective Date"
+                      name="effectiveDate"
+                      value={formData.effectiveDate}
+                      onChange={handleInput}
+                      type="date"
+                      required
+                    />
+                    <InputField
+                      label="MNDA Term"
+                      name="mndaTerm"
+                      value={formData.mndaTerm}
+                      onChange={handleInput}
+                      placeholder="2 years from Effective Date"
+                      required
+                    />
+                    <div className="col-span-2">
+                      <InputField
+                        label="Term of Confidentiality"
+                        name="termOfConfidentiality"
+                        value={formData.termOfConfidentiality}
+                        onChange={handleInput}
+                        placeholder="3 years following expiration or termination"
+                        required
+                      />
+                    </div>
+                    <InputField
+                      label="Governing Law (State)"
+                      name="governingLaw"
+                      value={formData.governingLaw}
+                      onChange={handleInput}
+                      placeholder="Delaware"
+                      required
+                    />
+                    <InputField
+                      label="Jurisdiction"
+                      name="jurisdiction"
+                      value={formData.jurisdiction}
+                      onChange={handleInput}
+                      placeholder="Wilmington, Delaware"
+                      required
+                    />
+                  </div>
+                </FormSection>
+              </div>
             </div>
-            <p className="text-[10px] text-slate-400 mt-1.5 ml-0.5">
-              Enter to send · Shift+Enter for new line
-            </p>
-          </div>
+          )}
+
         </div>
 
         {/* Right panel: live document preview */}
