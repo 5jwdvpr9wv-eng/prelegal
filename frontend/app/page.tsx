@@ -1,6 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useAuth } from "./auth-context";
+import { AuthModal } from "./components/AuthModal";
+import { MyDocumentsModal } from "./components/MyDocumentsModal";
+import { SaveDocumentModal } from "./components/SaveDocumentModal";
 
 // ── Generic types ─────────────────────────────────────────────────────────────
 
@@ -238,6 +242,15 @@ const DOCUMENT_CONFIGS: Record<string, DocConfig> = {
 interface Message {
   role: "user" | "assistant";
   content: string;
+}
+
+interface SavedDocWithFields {
+  id: number;
+  name: string;
+  document_type: string;
+  form_data: FormData;
+  created_at: string;
+  updated_at: string;
 }
 
 // ── Preview subcomponents ─────────────────────────────────────────────────────
@@ -973,6 +986,9 @@ function DownloadIcon() {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function Home() {
+  const { user, loading, signOut } = useAuth();
+
+  // Document workflow state
   const [mode, setMode] = useState<"chat" | "form">("chat");
   const [documentType, setDocumentType] = useState<string | null>(null);
   const [docConfig, setDocConfig] = useState<DocConfig | null>(null);
@@ -981,6 +997,15 @@ export default function Home() {
   const [currentMessage, setCurrentMessage] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [input, setInput] = useState("");
+
+  // Persistence state
+  const [currentDocId, setCurrentDocId] = useState<number | null>(null);
+  const [saveDocName, setSaveDocName] = useState("");
+
+  // Modal state
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showMyDocs, setShowMyDocs] = useState(false);
+  const [showSavePrompt, setShowSavePrompt] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -1005,8 +1030,7 @@ export default function Home() {
     }
   };
 
-  // Fetch greeting on mount
-  useEffect(() => {
+  const fetchGreeting = useCallback(() => {
     fetch("/api/chat/greeting")
       .then((r) => r.json())
       .then((data: { message: string }) =>
@@ -1022,6 +1046,11 @@ export default function Home() {
         ])
       );
   }, []);
+
+  // Fetch greeting on mount
+  useEffect(() => {
+    fetchGreeting();
+  }, [fetchGreeting]);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -1128,6 +1157,73 @@ export default function Home() {
 
   const isNDA = documentType === "mutual_nda" || documentType === "mutual_nda_coverpage";
 
+  const handleNewDocument = useCallback(() => {
+    setDocumentType(null);
+    setDocConfig(null);
+    setFormData({});
+    setMessages([]);
+    setCurrentDocId(null);
+    setSaveDocName("");
+    setMode("chat");
+    fetchGreeting();
+  }, [fetchGreeting]);
+
+  const handleSignout = useCallback(async () => {
+    await signOut();
+    setCurrentDocId(null);
+    setSaveDocName("");
+  }, [signOut]);
+
+  const handleSave = useCallback(async () => {
+    if (!docConfig || !user || !documentType) return;
+    if (currentDocId !== null) {
+      const r = await fetch(`/api/documents/${currentDocId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: saveDocName, form_data: formData }),
+      }).catch(() => null);
+      if (!r?.ok) {
+        // Session likely expired — prompt re-auth
+        setShowAuthModal(true);
+      }
+    } else {
+      setSaveDocName(docConfig.name);
+      setShowSavePrompt(true);
+    }
+  }, [docConfig, user, documentType, currentDocId, saveDocName, formData]);
+
+  const handleSaveConfirm = useCallback(
+    async (name: string) => {
+      if (!docConfig || !documentType) return;
+      const r = await fetch("/api/documents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, document_type: documentType, form_data: formData }),
+      });
+      if (!r.ok) throw new Error("Save failed");
+      const data = await r.json();
+      setCurrentDocId(data.id);
+      setSaveDocName(name);
+      setShowSavePrompt(false);
+    },
+    [docConfig, documentType, formData]
+  );
+
+  const handleLoadDoc = useCallback(
+    (doc: SavedDocWithFields) => {
+      const config = DOCUMENT_CONFIGS[doc.document_type] ?? null;
+      setDocumentType(doc.document_type);
+      setDocConfig(config);
+      setFormData(doc.form_data);
+      setCurrentDocId(doc.id);
+      setSaveDocName(doc.name);
+      setMessages([]);
+      setMode("form");
+      setShowMyDocs(false);
+    },
+    []
+  );
+
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       {/* ── Header ─────────────────────────────────────────────────────────── */}
@@ -1140,15 +1236,72 @@ export default function Home() {
             {docConfig ? docConfig.name : "Legal Document Creator"}
           </span>
         </div>
-        {(isComplete || mode === "form") && docConfig && (
-          <button
-            onClick={handleDownload}
-            className="flex items-center gap-1.5 rounded-md bg-gold px-4 py-2 text-sm font-semibold text-white hover:bg-gold-hover transition-colors"
-          >
-            <DownloadIcon />
-            Download PDF
-          </button>
-        )}
+
+        <div className="flex items-center gap-2">
+          {/* New Document */}
+          {docConfig && (
+            <button
+              onClick={handleNewDocument}
+              className="text-[11px] text-slate-400 hover:text-white border border-slate-600/50 rounded px-2.5 py-1.5 transition-colors"
+            >
+              New
+            </button>
+          )}
+
+          {/* Save */}
+          {docConfig && user && (
+            <button
+              onClick={handleSave}
+              className="text-[11px] font-semibold text-gold border border-gold/50 rounded px-2.5 py-1.5 hover:bg-gold/10 transition-colors"
+            >
+              {currentDocId ? "Update" : "Save"}
+            </button>
+          )}
+
+          {/* My Documents */}
+          {user && (
+            <button
+              onClick={() => setShowMyDocs(true)}
+              className="text-[11px] text-slate-400 hover:text-white transition-colors px-1.5"
+            >
+              My Documents
+            </button>
+          )}
+
+          {/* Download PDF */}
+          {(isComplete || mode === "form") && docConfig && (
+            <button
+              onClick={handleDownload}
+              className="flex items-center gap-1.5 rounded-md bg-gold px-4 py-2 text-sm font-semibold text-white hover:bg-gold-hover transition-colors"
+            >
+              <DownloadIcon />
+              Download PDF
+            </button>
+          )}
+
+          {/* Auth controls */}
+          {!loading && !user && (
+            <button
+              onClick={() => setShowAuthModal(true)}
+              className="text-[11px] font-semibold text-white border border-white/20 rounded px-2.5 py-1.5 hover:bg-white/10 transition-colors"
+            >
+              Sign In
+            </button>
+          )}
+          {!loading && user && (
+            <div className="flex items-center gap-2 ml-1">
+              <span className="hidden sm:block text-[11px] text-slate-400 max-w-[140px] truncate">
+                {user.email}
+              </span>
+              <button
+                onClick={handleSignout}
+                className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
+              >
+                Sign out
+              </button>
+            </div>
+          )}
+        </div>
       </header>
 
       {/* ── Split-screen body ───────────────────────────────────────────────── */}
@@ -1465,6 +1618,11 @@ export default function Home() {
                       Common Paper Standard Agreement
                     </p>
                   </div>
+
+                  <div className="mb-6 rounded border border-gold-rule bg-gold-light px-4 py-2.5 text-[10px] font-sans text-center text-slate-500 leading-relaxed">
+                    <span className="font-semibold text-slate-600">Draft only</span> — This document is AI-generated for review purposes and does not constitute legal advice. Consult a qualified attorney before signing.
+                  </div>
+
                   {isNDA ? (
                     <NDAPreview data={formData} />
                   ) : (
@@ -1483,6 +1641,24 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {/* ── Modals ──────────────────────────────────────────────────────────── */}
+      {showAuthModal && (
+        <AuthModal onClose={() => setShowAuthModal(false)} />
+      )}
+      {showSavePrompt && (
+        <SaveDocumentModal
+          defaultName={saveDocName}
+          onClose={() => setShowSavePrompt(false)}
+          onSave={handleSaveConfirm}
+        />
+      )}
+      {showMyDocs && (
+        <MyDocumentsModal
+          onClose={() => setShowMyDocs(false)}
+          onLoad={handleLoadDoc}
+        />
+      )}
     </div>
   );
 }

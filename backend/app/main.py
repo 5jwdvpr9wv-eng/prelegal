@@ -2,15 +2,16 @@ import os
 from contextlib import asynccontextmanager
 from typing import List, Optional
 
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from jose import JWTError
 from pydantic import BaseModel
 
-from .auth import create_token, decode_token, hash_password, verify_password
+from .auth import create_token, hash_password, verify_password
 from .chat import ChatMessage, get_greeting, stream_chat
 from .database import get_db, init_db
+from .deps import get_current_user
+from .document_routes import router as documents_router
 from .documents import REGISTRY
 
 
@@ -21,6 +22,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+app.include_router(documents_router)
 
 
 class AuthRequest(BaseModel):
@@ -83,7 +85,7 @@ async def signup(req: AuthRequest, response: Response):
         "access_token", token, httponly=True, samesite="lax",
         max_age=7 * 86400,
     )
-    return {"email": req.email}
+    return {"id": user_id, "email": req.email}
 
 
 @app.post("/api/auth/signin")
@@ -101,7 +103,7 @@ async def signin(req: AuthRequest, response: Response):
         "access_token", token, httponly=True, samesite="lax",
         max_age=7 * 86400,
     )
-    return {"email": row["email"]}
+    return {"id": row["id"], "email": row["email"]}
 
 
 @app.post("/api/auth/signout")
@@ -111,15 +113,8 @@ async def signout(response: Response):
 
 
 @app.get("/api/auth/me")
-async def me(request: Request):
-    token = request.cookies.get("access_token")
-    if not token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    try:
-        payload = decode_token(token)
-        return {"id": int(payload["sub"]), "email": payload["email"]}
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
+async def me(user: dict = Depends(get_current_user)):
+    return user
 
 
 # Serve the static Next.js export — must be mounted after all API routes

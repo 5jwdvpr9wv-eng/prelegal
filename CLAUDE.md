@@ -8,7 +8,7 @@ The available documents are covered in the catalog.json file in the project root
 
 @catalog.json
 
-The current implementation supports all 11 document types via AI chat. PL-4 built the technical foundation, PL-5 added AI chat for NDA creation, PL-6 expanded to all document types. Document persistence is planned for future tickets.
+The current implementation supports all 12 document types via AI chat. PL-4 built the technical foundation, PL-5 added AI chat for NDA creation, PL-6 expanded to all document types. User authentication and document persistence are planned for PL-7.
 
 ## Development process
 
@@ -89,8 +89,19 @@ These are the actual Tailwind tokens in `frontend/tailwind.config.ts`:
 - `GET /api/catalog` endpoint returns all registered doc types
 - 19 backend tests passing; backward-compat aliases: `GREETING`, `NDAFields`
 
-### Not yet built (upcoming tickets)
-- **PL-7**: Frontend auth UI, document persistence, My Documents, user menu
+### Completed (PL-7) — Auth UI, Document Persistence, Polish
+- AuthProvider + useAuth context (`frontend/app/auth-context.tsx`) — checks `/api/auth/me` on mount
+- Sign in / sign up modal (`components/AuthModal.tsx`) — tabs, gold focus states, purple submit button
+- Document persistence: `documents` table in SQLite with full CRUD API (`backend/app/document_routes.py`)
+- Save button in header — first save prompts for name (`components/SaveDocumentModal.tsx`), subsequent saves update in place
+- My Documents modal (`components/MyDocumentsModal.tsx`) — load and delete saved documents
+- New Document button resets all state and re-fetches greeting
+- User email + Sign Out controls in header
+- Draft disclaimer banner in document preview
+- `backend/app/deps.py` — shared `get_current_user` FastAPI dependency
+- 44 backend tests passing (8 auth, 17 documents, 19 chat)
+- `purple: "#753991"` added to Tailwind config for submit buttons
+- Page metadata updated to "Legal Document Creator"
 
 ### Current API Endpoints
 - `GET  /api/health` — Health check
@@ -101,3 +112,8 @@ These are the actual Tailwind tokens in `frontend/tailwind.config.ts`:
 - `POST /api/auth/signin` — Sign in (sets JWT cookie)
 - `POST /api/auth/signout` — Clear JWT cookie
 - `GET  /api/auth/me` — Return current user (requires cookie)
+- `GET  /api/documents` — List user's documents (auth required)
+- `POST /api/documents` — Create document (auth required)
+- `GET  /api/documents/{id}` — Get document with form_data (auth required, owner-checked)
+- `PUT  /api/documents/{id}` — Update name/form_data (auth required, owner-checked)
+- `DELETE /api/documents/{id}` — Delete document (auth required, owner-checked)
