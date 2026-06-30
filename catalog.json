@@ -5,6 +5,11 @@
     "filename": "templates/Mutual-NDA.md"
   },
   {
+    "name": "Mutual NDA Cover Page",
+    "description": "Cover page for the Mutual NDA providing a structured summary of key business terms to be completed and signed by the parties. Incorporates the Mutual NDA Standard Terms by reference.",
+    "filename": "templates/Mutual-NDA-coverpage.md"
+  },
+  {
     "name": "Cloud Service Agreement",
     "description": "Standard agreement for selling and buying cloud software and SaaS products. Created by a committee of over 40 attorneys. Includes terms for subscription, support, and data handling.",
     "filename": "templates/CSA.md"
