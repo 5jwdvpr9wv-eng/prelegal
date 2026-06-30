@@ -8,7 +8,7 @@ The available documents are covered in the catalog.json file in the project root
 
 @catalog.json
 
-The current implementation (PL-4) provides the technical foundation: Docker container, FastAPI backend, SQLite auth, and a Mutual NDA form with live preview and PDF download. AI chat, additional document types, and document persistence are planned for future tickets.
+The current implementation (PL-5) adds an AI chat interface for Mutual NDA creation on top of the PL-4 technical foundation. Additional document types and document persistence are planned for future tickets.
 
 ## Development process
 
@@ -70,13 +70,23 @@ These are the actual Tailwind tokens in `frontend/tailwind.config.ts`:
 - Mutual NDA form with live preview and client-side PDF download (`frontend/app/page.tsx`)
 - `.env.example` documents required environment variables
 
+### Completed (PL-5) — AI Chat Interface
+- AI chat replaces the manual form in the left panel; NDA preview and PDF generation unchanged
+- LiteLLM via OpenRouter with Cerebras inference (`gpt-oss-120b`); structured-output field extraction
+- Streaming SSE: text tokens stream as the AI types; field extraction fires after each response
+- Live NDA preview updates as fields are extracted from the conversation
+- Download PDF button appears once all 8 required fields are populated
+- Backend: `backend/app/chat.py` (chat logic), 8 integration tests in `backend/tests/`
+- Resilience: extraction wrapped in `try/finally` (backend) and `sendMessage` uses `try/catch/finally` (frontend) so the UI never gets permanently locked on API failures
+
 ### Not yet built (upcoming tickets)
-- **PL-5**: AI chat interface for NDA creation (LiteLLM / OpenRouter / Cerebras)
 - **PL-6**: Support for all 11 document types from catalog.json
 - **PL-7**: Frontend auth UI, document persistence, My Documents, user menu
 
 ### Current API Endpoints
 - `GET  /api/health` — Health check
+- `GET  /api/chat/greeting` — Returns AI greeting message
+- `POST /api/chat/message` — Streaming SSE chat: `{message, history}` → text chunks + fields + done
 - `POST /api/auth/signup` — Create account (sets JWT cookie)
 - `POST /api/auth/signin` — Sign in (sets JWT cookie)
 - `POST /api/auth/signout` — Clear JWT cookie
